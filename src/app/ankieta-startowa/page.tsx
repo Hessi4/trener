@@ -1,7 +1,7 @@
 // src/app/ankieta-startowa/page.tsx
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { 
   ProfilUzytkownikaRozszerzony, 
@@ -62,48 +62,65 @@ export default function AnkietaStartowa() {
   const [krok, setKrok] = useState<number>(1);
   const [ladowanie, setLadowanie] = useState<boolean>(false);
 
-  const [dane, setDane] = useState<ProfilUzytkownikaRozszerzony>({
-    celGlowny: 'redukcja_tluszczu',
-    wiek: 23,
-    wzrostCm: 180,
-    wagaAktualnaKg: 85,
-    wagaDocelowaKg: 78,
-    pomiary: { 
-      klatkaCm: 104, 
-      pasTaliaCm: 88, 
-      biodraCm: 98, 
-      karkSzyjaCm: 39,
-      bicepsPrawyCm: 38, 
-      bicepsLewyCm: 37.5,
-      udoPraweCm: 60,
-      udoLeweCm: 60,
-      lydkaCm: 38,
-      przedramieCm: 30
-    },
-    zdrowieIKontuzje: '',
-    sprzet: [
-      'hantle_regulowane', 
-      'gryf_prosty_zwykly', 
-      'lawka_regulowana_katy', 
-      'wyciag_gorny', 
-      'drazek_do_podciagania',
-      'uchwyt_sznur_triceps'
-    ],
-    szczegolySilowni: { maksObciazenieGryfKg: 90, maksHantleKg: 24, skosUjemnyLawka: false },
-    basen: {
-      poziom: 'sredniozaawansowany',
-      znaneStyle: ['kraul', 'grzbiet'],
-      akcesoria: ['deska', 'ósemka_pullbuoy', 'stoper_zegarek'],
-      czasNajszybsze50mKraul: '0:34',
-      tempo100mKraulKomfort: '1:45',
-      czasNa400mKraul: '7:30',
-      sredniaObjetoscSesjiMetry: 1500,
-      maksDystansCiaglyMetry: 2000,
-      dlugoscBasenuMetry: 25,
-      umiejetnoscNawrotuKozilkowego: false,
-      skupienie: 'tempo_interwaly',
-    },
+  const [dane, setDane] = useState<ProfilUzytkownikaRozszerzony>(() => {
+    if (typeof window !== 'undefined') {
+      const zapisaneAutosave = localStorage.getItem('autosave_ankieta');
+      if (zapisaneAutosave) {
+        try {
+          return JSON.parse(zapisaneAutosave);
+        } catch (e) {
+          console.error(e);
+        }
+      }
+    }
+    return {
+      celGlowny: 'redukcja_tluszczu',
+      wiek: 23,
+      wzrostCm: 180,
+      wagaAktualnaKg: 85,
+      wagaDocelowaKg: 78,
+      pomiary: { 
+        klatkaCm: 104, 
+        pasTaliaCm: 88, 
+        biodraCm: 98, 
+        karkSzyjaCm: 39,
+        bicepsPrawyCm: 38, 
+        bicepsLewyCm: 37.5,
+        udoPraweCm: 60,
+        udoLeweCm: 60,
+        lydkaCm: 38,
+        przedramieCm: 30
+      },
+      zdrowieIKontuzje: '',
+      sprzet: [
+        'hantle_regulowane', 
+        'gryf_prosty_zwykly', 
+        'lawka_regulowana_katy', 
+        'wyciag_gorny', 
+        'drazek_do_podciagania',
+        'uchwyt_sznur_triceps'
+      ],
+      szczegolySilowni: { maksObciazenieGryfKg: 90, maksHantleKg: 24, skosUjemnyLawka: false },
+      basen: {
+        poziom: 'sredniozaawansowany',
+        znaneStyle: ['kraul', 'grzbiet'],
+        akcesoria: ['deska', 'ósemka_pullbuoy', 'stoper_zegarek'],
+        czasNajszybsze50mKraul: '0:34',
+        tempo100mKraulKomfort: '1:45',
+        czasNa400mKraul: '7:30',
+        sredniaObjetoscSesjiMetry: 1500,
+        maksDystansCiaglyMetry: 2000,
+        dlugoscBasenuMetry: 25,
+        umiejetnoscNawrotuKozilkowego: false,
+        skupienie: 'tempo_interwaly',
+      },
+    };
   });
+
+  // Autosave do localStorage przy każdej zmianie danych
+  useEffect(() => {
+    localStorage.setItem('autosave_ankieta', JSON.stringify(dane));
+  }, [dane]);
 
   const przelaczElement = <T,>(lista: T[], element: T): T[] => {
     return lista.includes(element) ? lista.filter((i) => i !== element) : [...lista, element];
@@ -114,6 +131,27 @@ export default function AnkietaStartowa() {
     try {
       localStorage.setItem('profil_uzytkownika', JSON.stringify(dane));
 
+      // 1. Zapis danych z ankiety jako pomiary do zakładki "Pomiary ciała"
+      const dzisiejszaData = new Date().toISOString().split('T')[0];
+      const zmapowanePomiary = [
+        { id: Date.now() + 1, kategoria: 'Masa ciała', wartosc: dane.wagaAktualnaKg || 0, data: dzisiejszaData },
+        { id: Date.now() + 2, kategoria: 'Klatka piersiowa', wartosc: dane.pomiary.klatkaCm || 0, data: dzisiejszaData },
+        { id: Date.now() + 3, kategoria: 'Talia', wartosc: dane.pomiary.pasTaliaCm || 0, data: dzisiejszaData },
+        { id: Date.now() + 4, kategoria: 'Biodra', wartosc: dane.pomiary.biodraCm || 0, data: dzisiejszaData },
+        { id: Date.now() + 5, kategoria: 'Szyja/kark', wartosc: dane.pomiary.karkSzyjaCm || 0, data: dzisiejszaData },
+        { id: Date.now() + 6, kategoria: 'Ramię/biceps', wartosc: Math.max(dane.pomiary.bicepsPrawyCm || 0, dane.pomiary.bicepsLewyCm || 0), data: dzisiejszaData },
+        { id: Date.now() + 7, kategoria: 'Udo', wartosc: Math.max(dane.pomiary.udoPraweCm || 0, dane.pomiary.udoLeweCm || 0), data: dzisiejszaData },
+        { id: Date.now() + 8, kategoria: 'Łydka', wartosc: dane.pomiary.lydkaCm || 0, data: dzisiejszaData }
+      ].filter(p => p.wartosc > 0); // Teraz TypeScript wie, że wartosc to na pewno liczba
+
+      const istniejacePomiary = JSON.parse(localStorage.getItem('historia_pomiarow_szczegolowa') || '[]');
+      // Filtrujemy startowe (fejkowe) pomiary z poprzednich miesięcy
+      const bezWypelniaczy = istniejacePomiary.filter((p: any) => p.data !== '2026-05-01' && p.data !== '2026-06-01' && p.data !== '2026-07-01');
+      
+      const zaktualizowanePomiary = [...bezWypelniaczy, ...zmapowanePomiary];
+      localStorage.setItem('historia_pomiarow_szczegolowa', JSON.stringify(zaktualizowanePomiary));
+
+      // 2. Wysłanie danych do API, aby wygenerować plan AI
       const res = await fetch('/api/asystent', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -127,7 +165,12 @@ export default function AnkietaStartowa() {
       }
 
       localStorage.setItem('wygenerowany_plan_ai', JSON.stringify(json));
-      router.push('/pulpit');
+      
+      // 3. Czyszczenie autosave po udanym generowaniu
+      localStorage.removeItem('autosave_ankieta');
+
+      // 4. Przekierowanie na stronę główną
+      router.push('/');
     } catch (err: any) {
       console.error('Błąd ankiety:', err);
       alert(`Błąd: ${err.message}`);

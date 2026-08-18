@@ -144,9 +144,6 @@ export default function PulpitGłówny() {
           <Link href="/edytor-planu" className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold px-3 py-2 rounded-xl transition shadow">
             ✏️ Edytor Planu
           </Link>
-          <Link href="/ankieta-startowa" className="bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs font-medium px-3 py-2 rounded-xl transition">
-            ⚙️ Ankieta
-          </Link>
           <Link href="/skaner" className="bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs font-medium px-3 py-2 rounded-xl transition">
             📷 Skaner
           </Link>
@@ -180,9 +177,6 @@ export default function PulpitGłówny() {
         {dniTreningowe.length === 0 ? (
           <div className="text-center py-6 space-y-3">
             <p className="text-zinc-400 text-sm">Brak wygenerowanego planu treningowego.</p>
-            <Link href="/ankieta-startowa" className="inline-block bg-emerald-600 font-bold text-sm px-4 py-2.5 rounded-xl text-white">
-              Wygeneruj plan w ankiecie →
-            </Link>
           </div>
         ) : (
           <div className="space-y-4">
