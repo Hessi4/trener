@@ -126,14 +126,18 @@ export default function EdytorPlanuPage() {
     setLadujeAi(true);
     try {
       const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
+      if (!apiKey) {
+        throw new Error("Brak klucza API. Upewnij się, że dodałeś NEXT_PUBLIC_GEMINI_API_KEY w ustawieniach (zmienne środowiskowe).");
+      }
+
       const prompt = `Wygeneruj listę ćwiczeń dla dnia treningowego. 
 Dzień: ${aktualny.dzienTygodnia}, Tytuł: ${aktualny.tytul}, Typ aktywności: ${aktualny.typ}.
-Zwróć WYŁĄCZNIE poprawną tablicę JSON w formacie obiektów (bez markdowna, bez żadnego tekstu):
+Zwróć WYŁĄCZNIE poprawną tablicę JSON w formacie obiektów. NIE UŻYWAJ ZNACZNIKÓW MARKDOWN (takich jak \`\`\`json). Sam czysty tekst. Format:
 [
   { "nazwa": "Nazwa ćwiczenia lub zadania", "opisSerii": "np. 4x10 lub 8x100m", "uwagiTechniczne": "krótka wskazówka" }
 ]`;
 
-      const url = 'https://generativelanguage.googleapis.com/v1/models/gemini-3.6-flash:generateContent?key=' + apiKey;
+      const url = 'https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=' + apiKey;
       const response = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -143,15 +147,29 @@ Zwróć WYŁĄCZNIE poprawną tablicę JSON w formacie obiektów (bez markdowna,
         })
       });
 
+      if (!response.ok) {
+        throw new Error(`Błąd połączenia z API (kod ${response.status})`);
+      }
+
       const data = await response.json();
-      const jsonString = data.candidates[0].content.parts[0].text;
+      
+      if (!data.candidates || !data.candidates[0]?.content?.parts?.[0]?.text) {
+          throw new Error("AI nie zwróciło poprawnej odpowiedzi.");
+      }
+
+      let jsonString = data.candidates[0].content.parts[0].text;
+      
+      // Czyszczenie z markdowna, jeśli model go dorzuci
+      jsonString = jsonString.replace(/```json/g, "").replace(/```/g, "").trim();
+
       const wygenerowaneCwiczenia = JSON.parse(jsonString);
 
       const dni = [...plan.treningiTygodnia];
       dni[wybranyIdx].cwiczeniaIZadania = wygenerowaneCwiczenia;
       zapiszZmiany({ ...plan, treningiTygodnia: dni });
-    } catch (err) {
-      alert("Nie udało się wygenerować ćwiczeń przez AI. Spróbuj ponownie.");
+    } catch (err: any) {
+      console.error("Szczegóły błędu AI:", err);
+      alert(`Nie udało się wygenerować planu: ${err.message}`);
     } finally {
       setLadujeAi(false);
     }
