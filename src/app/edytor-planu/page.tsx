@@ -132,12 +132,13 @@ export default function EdytorPlanuPage() {
 
       const prompt = `Wygeneruj listę ćwiczeń dla dnia treningowego. 
 Dzień: ${aktualny.dzienTygodnia}, Tytuł: ${aktualny.tytul}, Typ aktywności: ${aktualny.typ}.
-Zwróć WYŁĄCZNIE poprawną tablicę JSON w formacie obiektów. NIE UŻYWAJ ZNACZNIKÓW MARKDOWN (takich jak \`\`\`json). Sam czysty tekst. Format:
+Zwróć WYŁĄCZNIE poprawną tablicę JSON w formacie obiektów. NIE UŻYWAJ ZNACZNIKÓW MARKDOWN. Sam czysty tekst. Format:
 [
   { "nazwa": "Nazwa ćwiczenia lub zadania", "opisSerii": "np. 4x10 lub 8x100m", "uwagiTechniczne": "krótka wskazówka" }
 ]`;
 
-      const url = 'https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=' + apiKey;
+      // Poprawiony URL z v1 na v1beta (naprawia błąd 404)
+      const url = '[https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=](https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=)' + apiKey;
       const response = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -159,8 +160,8 @@ Zwróć WYŁĄCZNIE poprawną tablicę JSON w formacie obiektów. NIE UŻYWAJ ZN
 
       let jsonString = data.candidates[0].content.parts[0].text;
       
-      // Czyszczenie z markdowna, jeśli model go dorzuci
-      jsonString = jsonString.replace(/```json/g, "").replace(/```/g, "").trim();
+      // Bezpieczne czyszczenie z markdowna (naprawia błąd w VS Code)
+      jsonString = jsonString.replace(/`{3}json/gi, "").replace(/`{3}/g, "").trim();
 
       const wygenerowaneCwiczenia = JSON.parse(jsonString);
 
@@ -187,7 +188,7 @@ Zwróć WYŁĄCZNIE poprawną tablicę JSON w formacie obiektów. NIE UŻYWAJ ZN
           <h1 className="text-xl font-bold text-emerald-400">Edytor Własnego Planu</h1>
           <p className="text-xs text-zinc-400">Modyfikuj, edytuj i dopasowuj plan do siebie</p>
         </div>
-        <Link href="/" className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold px-4 py-2.5 rounded-xl transition shadow">
+        <Link className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold px-4 py-2.5 rounded-xl transition shadow" href="/">
           ← Powrót do Pulpitu
         </Link>
       </div>
