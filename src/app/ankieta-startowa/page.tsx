@@ -142,7 +142,7 @@ export default function AnkietaStartowa() {
         { id: Date.now() + 6, kategoria: 'Ramię/biceps', wartosc: Math.max(dane.pomiary.bicepsPrawyCm || 0, dane.pomiary.bicepsLewyCm || 0), data: dzisiejszaData },
         { id: Date.now() + 7, kategoria: 'Udo', wartosc: Math.max(dane.pomiary.udoPraweCm || 0, dane.pomiary.udoLeweCm || 0), data: dzisiejszaData },
         { id: Date.now() + 8, kategoria: 'Łydka', wartosc: dane.pomiary.lydkaCm || 0, data: dzisiejszaData }
-      ].filter(p => p.wartosc > 0); // Teraz TypeScript wie, że wartosc to na pewno liczba
+      ].filter(p => p.wartosc > 0); // Zapisujemy tylko wypełnione pola, TypeScript jest zadowolony
 
       const istniejacePomiary = JSON.parse(localStorage.getItem('historia_pomiarow_szczegolowa') || '[]');
       // Filtrujemy startowe (fejkowe) pomiary z poprzednich miesięcy
@@ -233,7 +233,7 @@ export default function AnkietaStartowa() {
                   <label className="text-[11px] text-slate-400">Waga obecna (kg)</label>
                   <input
                     type="number"
-                    value={dane.wagaAktualnaKg}
+                    value={dane.wagaAktualnaKg || ''}
                     onChange={(e) => setDane({ ...dane, wagaAktualnaKg: Number(e.target.value) })}
                     className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-1.5 text-white text-xs mt-1"
                   />
@@ -242,7 +242,7 @@ export default function AnkietaStartowa() {
                   <label className="text-[11px] text-slate-400">Waga cel (kg)</label>
                   <input
                     type="number"
-                    value={dane.wagaDocelowaKg}
+                    value={dane.wagaDocelowaKg || ''}
                     onChange={(e) => setDane({ ...dane, wagaDocelowaKg: Number(e.target.value) })}
                     className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-1.5 text-white text-xs mt-1"
                   />
@@ -251,7 +251,7 @@ export default function AnkietaStartowa() {
                   <label className="text-[11px] text-slate-400">Wiek (lata)</label>
                   <input
                     type="number"
-                    value={dane.wiek}
+                    value={dane.wiek || ''}
                     onChange={(e) => setDane({ ...dane, wiek: Number(e.target.value) })}
                     className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-1.5 text-white text-xs mt-1"
                   />
@@ -260,7 +260,7 @@ export default function AnkietaStartowa() {
                   <label className="text-[11px] text-slate-400">Wzrost (cm)</label>
                   <input
                     type="number"
-                    value={dane.wzrostCm}
+                    value={dane.wzrostCm || ''}
                     onChange={(e) => setDane({ ...dane, wzrostCm: Number(e.target.value) })}
                     className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-1.5 text-white text-xs mt-1"
                   />

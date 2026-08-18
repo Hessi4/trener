@@ -3,9 +3,12 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation'; // <-- DODANO IMPORT ROUTERA
 
 export default function PulpitGłówny() {
+  const router = useRouter(); // <-- DODANO ROUTER
   const [plan, setPlan] = useState<any>(null);
+  const [ladowanie, setLadowanie] = useState(true); // <-- DODANO STAN ŁADOWANIA
   
   // Stan treningów siłowych
   const [wybranyDzienIdx, setWybranyDzienIdx] = useState<number>(0);
@@ -25,7 +28,16 @@ export default function PulpitGłówny() {
   const [bialko, setBialko] = useState('');
 
   useEffect(() => {
+    // --- DODANO SPRAWDZANIE PLANU ---
     const zapisanyPlan = localStorage.getItem('wygenerowany_plan_ai');
+    
+    if (!zapisanyPlan) {
+      // Jeśli brak planu -> wymuszamy ankietę
+      router.push('/ankieta-startowa');
+      return;
+    }
+    // --------------------------------
+
     if (zapisanyPlan) setPlan(JSON.parse(zapisanyPlan));
 
     const zapisaneTreningi = localStorage.getItem('moje_treningi_dzis');
@@ -33,7 +45,19 @@ export default function PulpitGłówny() {
 
     const zapisanePosilki = localStorage.getItem('moje_posilki_dzis');
     if (zapisanePosilki) setPosilki(JSON.parse(zapisanePosilki));
-  }, []);
+
+    setLadowanie(false); // <-- DODANO KONIEC ŁADOWANIA
+  }, [router]);
+
+  // --- DODANO EKRAN ŁADOWANIA ---
+  if (ladowanie) {
+    return (
+      <div className="min-h-screen bg-zinc-950 flex items-center justify-center text-emerald-400">
+        <p className="font-bold">Sprawdzanie profilu...</p>
+      </div>
+    );
+  }
+  // ------------------------------
 
   // Pobranie wyniku z poprzedniego treningu dla konkretnego numeru serii (PREV)
   const pobierzPoprzedniWynikDlaSerii = (nazwaCwiczenia: string, nrSerii: number) => {
