@@ -7,42 +7,71 @@ export async function POST(req: Request) {
     const profil = await req.json();
     
     // Twój klucz API Google Gemini
-      const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
+    const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY || process.env.GEMINI_API_KEY;
+
+    if (!apiKey) {
+      return Response.json({ error: "Brak klucza API w konfiguracji." }, { status: 500 });
+    }
 
     const promptSystemowy = `
-Jesteś elitarnym trenerem personalnym i dietetykiem. Masz za zadanie ułożyć kompletny plan na 7 dni w formacie JSON.
+Jesteś elitarnym trenerem personalnym i dietetykiem klinicznym. Masz za zadanie ułożyć kompletny, spersonalizowany plan na 7 dni w formacie JSON.
 
-DANE UŻYTKOWNIKA:
-- Sprzęt w garażu: ${JSON.stringify(profil.sprzet)}
-- Maks hantle: ${profil.szczegolySilowni?.maksHantleKg}kg
-- Urazy/Zdrowie: "${profil.zdrowieIKontuzje}"
-- Basen objętość: ${profil.basen.sredniaObjetoscSesjiMetry}m, akcesoria: ${JSON.stringify(profil.basen.akcesoria)}
-- Cel: ${profil.celGlowny}, Waga: ${profil.wagaAktualnaKg}kg -> Cel: ${profil.wagaDocelowaKg}kg
+DANE FIZYCZNE I BIOMECHANIKA:
+- Płeć: ${profil.plec}
+- Wiek: ${profil.wiek} lat
+- Wzrost: ${profil.wzrostCm} cm
+- Waga aktualna: ${profil.wagaAktualnaKg} kg -> Waga docelowa: ${profil.wagaDocelowaKg} kg
+- Cel główny: ${profil.celGlowny}
+- Poziom aktywności (poza treningami): ${profil.poziomAktywnosci}
+- Urazy i problemy zdrowotne: "${profil.zdrowieIKontuzje || 'Brak'}"
 
-ZWRÓĆ WYŁĄCZNIE POPRAWNY OBIEKT JSON WG TEGO SCHEMATU:
+HARMONOGRAM TRENINGOWY (ZAKAZ ZMIENIANIA!):
+Musisz ułożyć treningi DOKŁADNIE w te dni i w takiej formie, jak zażyczył sobie użytkownik poniżej. Jeśli użytkownik ma "Wolne", zaplanuj tam "Regeneracja".
+${profil.harmonogram ? profil.harmonogram.map((d: any) => `- ${d.dzienTygodnia}: ${d.rodzajTreningu}`).join('\n') : 'Brak wytycznych - rozłóż standardowo.'}
+
+DOSTĘPNY SPRZĘT NA SIŁOWNI:
+- Lista sprzętu: ${JSON.stringify(profil.sprzet)}
+- Maksymalna waga hantli: ${profil.szczegolySilowni?.maksHantleKg || 0} kg
+- Maksymalne obciążenie na gryf: ${profil.szczegolySilowni?.maksObciazenieGryfKg || 0} kg
+*UWAGA: Rozpisując trening "Siłownia", używaj TYLKO ćwiczeń na sprzęt z powyższej listy.*
+
+PARAMETRY BASENU (jeśli w harmonogramie jest "Basen"):
+- Poziom: ${profil.basen?.poziom}
+- Opanowane style: ${JSON.stringify(profil.basen?.znaneStyle)}
+- Dostępne akcesoria: ${JSON.stringify(profil.basen?.akcesoria)}
+- Tempo komfortowe (100m): ${profil.basen?.tempo100mKraulKomfort}
+- Średnia objętość sesji: ${profil.basen?.sredniaObjetoscSesjiMetry} m
+
+TWOJE ZADANIE:
+1. Oblicz całkowite zapotrzebowanie kaloryczne (TDEE) uwzględniając płeć, wiek, wagę, wzrost i poziom aktywności.
+2. Skoryguj kalorie pod cel (np. deficyt dla redukcji, nadwyżka dla budowy masy).
+3. Oblicz makroskładniki (białko, tłuszcze, węglowodany).
+4. Ułóż 7-dniowy plan ćwiczeń, ściśle trzymając się Harmonogramu Treningowego.
+
+ZWRÓĆ WYŁĄCZNIE POPRAWNY OBIEKT JSON WG TEGO SCHEMATU (bez używania znaczników markdown):
 {
   "makroskladniki": {
     "kalorieKcal": 2250,
     "bialkoGramy": 170,
     "weglowodanyGramy": 240,
     "tluszczeGramy": 70,
-    "uzasadnienie": "Krótkie uzasadnienie diety."
+    "uzasadnienie": "Wyliczone TDEE to X kcal. Zastosowano deficyt Y kcal ze względu na..."
   },
   "treningiTygodnia": [
     {
       "dzienTygodnia": "Poniedziałek",
-      "typ": "Basen",
-      "tytul": "Baza tlenowa",
-      "akcent": "Technika",
+      "typ": "Siłownia",
+      "tytul": "Góra ciała",
+      "akcent": "Hipertrofia",
       "cwiczeniaIZadania": [
-        { "nazwa": "Rozgrzewka", "opisSerii": "4x50m kraul", "uwagiTechniczne": "Spokojne tempo" }
+        { "nazwa": "Wyciskanie hantli", "opisSerii": "4x8-10", "uwagiTechniczne": "Kontrolowane opuszczanie 3 sekundy" }
       ]
     }
   ]
 }
 `;
 
-    // Używamy nowiutkiego modelu gemini-3.6-flash, zgodnie z zaleceniem serwerów Google
+    // POWRÓT DO TWOJEGO SPRAWDZONEGO LINKU!
     const url = 'https://generativelanguage.googleapis.com/v1/models/gemini-3.6-flash:generateContent?key=' + apiKey;
 
     const response = await fetch(url, {
@@ -67,7 +96,14 @@ ZWRÓĆ WYŁĄCZNIE POPRAWNY OBIEKT JSON WG TEGO SCHEMATU:
       throw new Error(data.error?.message || "Błąd komunikacji z API Google.");
     }
 
-    const jsonString = data.candidates[0].content.parts[0].text;
+    let jsonString = data.candidates[0].content.parts[0].text;
+    
+    if (jsonString.includes('```json')) {
+      jsonString = jsonString.split('```json')[1].split('```')[0].trim();
+    } else if (jsonString.includes('```')) {
+      jsonString = jsonString.split('```')[1].split('```')[0].trim();
+    }
+
     const wygenerowanyPlan = JSON.parse(jsonString);
 
     return Response.json(wygenerowanyPlan);

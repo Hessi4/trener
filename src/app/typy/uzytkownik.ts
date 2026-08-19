@@ -1,5 +1,14 @@
 // src/typy/uzytkownik.ts
 
+export type Plec = 'mezczyzna' | 'kobieta';
+
+export type PoziomAktywnosci = 
+  | 'siedzaca' // Np. praca za biurkiem, brak ruchu
+  | 'lekka' // 1-2 lekkie treningi, dużo siedzenia
+  | 'umiarkowana' // 3-4 treningi, praca mieszana
+  | 'wysoka' // 5+ treningów lub praca mocno fizyczna
+  | 'bardzo_wysoka'; // Zawodowi sportowcy, ciężka praca fizyczna
+
 export type CelGlowny = 
   | 'redukcja_tluszczu'
   | 'rekompozycja_forma'
@@ -9,6 +18,7 @@ export type PoziomPlywania = 'poczatkujacy' | 'sredniozaawansowany' | 'zaawansow
 export type StylPlywacki = 'kraul' | 'grzbiet' | 'klasyczny' | 'motylkowy';
 
 export type SprzetGarazowy = 
+  // Stara podstawa
   | 'hantle_regulowane'
   | 'gryf_prosty_olimpijski'
   | 'gryf_prosty_zwykly'
@@ -23,7 +33,20 @@ export type SprzetGarazowy =
   | 'uchwyt_drazek_szeroki'
   | 'uchwyt_trojkat_wioslo'
   | 'gumy_oporowe_powerband'
-  | 'pas_obciazeniowy';
+  | 'pas_obciazeniowy'
+  // Nowy sprzęt z komercyjnych siłowni i wolne ciężary
+  | 'maszyna_smitha'
+  | 'suwnica_nogi'
+  | 'wyciag_brama'
+  | 'kettlebells'
+  | 'maszyna_klatka_rozpietki'
+  | 'maszyna_plecy_wioslo'
+  | 'maszyna_nogi_czworoglowe'
+  | 'maszyna_nogi_dwuglowe'
+  | 'maszyna_lydki'
+  | 'rowerek_stacjonarny'
+  | 'bieznia'
+  | 'ergometr_wioslarski';
 
 export type AkcesoriaPlywackie = 
   | 'deska'
@@ -39,12 +62,18 @@ export interface PomiaryCiala {
   pasTaliaCm?: number;
   biodraCm?: number;
   karkSzyjaCm?: number;
+  
+  // Zmienione na pojedyncze wymiary
+  bicepsCm?: number;
+  udoCm?: number;
+  lydkaCm?: number;
+  przedramieCm?: number;
+
+  // Zostawione stare nazwy dla kompatybilności wstecznej (żeby stara apka nie wyrzuciła błędu)
   bicepsPrawyCm?: number;
   bicepsLewyCm?: number;
   udoPraweCm?: number;
   udoLeweCm?: number;
-  lydkaCm?: number;
-  przedramieCm?: number;
 }
 
 export interface SzczegolySilowni {
@@ -67,7 +96,18 @@ export interface SzczegolyBasenuRozszerzone {
   skupienie: 'technika_pozycja' | 'tempo_interwaly' | 'wytrzymalosc_tlenowa';
 }
 
+export interface DzienHarmonogramu {
+  dzienTygodnia: 'Poniedziałek' | 'Wtorek' | 'Środa' | 'Czwartek' | 'Piątek' | 'Sobota' | 'Niedziela';
+  rodzajTreningu: 'Siłownia' | 'Basen' | 'Cardio' | 'Wolne';
+}
+
 export interface ProfilUzytkownikaRozszerzony {
+  // NOWE POLA
+  plec: Plec;
+  poziomAktywnosci: PoziomAktywnosci;
+  harmonogram: DzienHarmonogramu[];
+  
+  // STARE POLA
   celGlowny: CelGlowny;
   wiek: number;
   wzrostCm: number;
@@ -89,7 +129,7 @@ export interface ZadanieTreningowe {
 
 export interface DzienTreningowy {
   dzienTygodnia: 'Poniedziałek' | 'Wtorek' | 'Środa' | 'Czwartek' | 'Piątek' | 'Sobota' | 'Niedziela';
-  typ: 'Basen' | 'Siłownia' | 'Regeneracja';
+  typ: 'Basen' | 'Siłownia' | 'Cardio' | 'Regeneracja';
   tytul: string;
   akcent: string;
   cwiczeniaIZadania: ZadanieTreningowe[];
