@@ -65,7 +65,6 @@ export default function EdytorPlanuPage() {
     }
   };
 
-  // Dodawanie lub edycja ćwiczenia
   const zapiszCwiczenie = (e: React.FormEvent) => {
     e.preventDefault();
     if (!nowaNazwaCwiczenia || plan.treningiTygodnia.length === 0) return;
@@ -78,7 +77,6 @@ export default function EdytorPlanuPage() {
     }
 
     if (edytowaneCwiczenieIdx !== null) {
-      // Edycja istniejącego
       wybranek.cwiczeniaIZadania[edytowaneCwiczenieIdx] = {
         ...wybranek.cwiczeniaIZadania[edytowaneCwiczenieIdx],
         nazwa: nowaNazwaCwiczenia,
@@ -86,7 +84,6 @@ export default function EdytorPlanuPage() {
       };
       setEdytowaneCwiczenieIdx(null);
     } else {
-      // Dodawanie nowego
       wybranek.cwiczeniaIZadania.push({
         nazwa: nowaNazwaCwiczenia,
         opisSerii: nowyOpisSerii,
@@ -99,7 +96,6 @@ export default function EdytorPlanuPage() {
     setNowyOpisSerii('3x10');
   };
 
-  // Wczytaj dane do formularza w celu edycji
   const rozpocznijEdycje = (cIdx: number) => {
     const cw = plan.treningiTygodnia[wybranyIdx].cwiczeniaIZadania[cIdx];
     setNowaNazwaCwiczenia(cw.nazwa);
@@ -118,7 +114,9 @@ export default function EdytorPlanuPage() {
     }
   };
 
-  // Generator AI dla pojedynczego dnia
+  // ------------------------------------------------------------------
+  // IDEALNA KOPIA TEGO CO DZIAŁA W ANKIECIE (route.ts)
+  // ------------------------------------------------------------------
   const generujDzienAIBezposrednio = async () => {
     const aktualny = plan.treningiTygodnia[wybranyIdx];
     if (!aktualny) return;
@@ -127,50 +125,54 @@ export default function EdytorPlanuPage() {
     try {
       const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
       if (!apiKey) {
-        throw new Error("Brak klucza API. Upewnij się, że dodałeś NEXT_PUBLIC_GEMINI_API_KEY w ustawieniach (zmienne środowiskowe).");
+        throw new Error("Brak klucza API w pliku .env (wymagane NEXT_PUBLIC_GEMINI_API_KEY).");
       }
 
-      const prompt = `Wygeneruj listę ćwiczeń dla dnia treningowego. 
+      const promptSystemowy = `
+Wygeneruj listę ćwiczeń dla dnia treningowego. 
 Dzień: ${aktualny.dzienTygodnia}, Tytuł: ${aktualny.tytul}, Typ aktywności: ${aktualny.typ}.
-Zwróć WYŁĄCZNIE poprawną tablicę JSON w formacie obiektów. NIE UŻYWAJ ZNACZNIKÓW MARKDOWN. Sam czysty tekst bez formatowania kodem. Format:
+Zwróć WYŁĄCZNIE poprawną tablicę JSON w formacie obiektów:
 [
-  { "nazwa": "Nazwa ćwiczenia lub zadania", "opisSerii": "np. 4x10 lub 8x100m", "uwagiTechniczne": "krótka wskazówka" }
-]`;
+  { "nazwa": "Nazwa ćwiczenia", "opisSerii": "np. 3x10", "uwagiTechniczne": "wskazówka" }
+]
+`;
 
-      // Stabilny model gemini-pro, który nigdy nie zwraca 404
-      const url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=' + apiKey;
+      // Kopia działającego linku z ankiety
+      const url = 'https://generativelanguage.googleapis.com/v1/models/gemini-3.6-flash:generateContent?key=' + apiKey;
+
       const response = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: { temperature: 0.3 }
+          contents: [{
+            role: 'user',
+            parts: [{ text: promptSystemowy }]
+          }],
+          generationConfig: {
+            responseMimeType: "application/json",
+            temperature: 0.2
+          }
         })
       });
 
-      if (!response.ok) {
-        throw new Error(`Błąd połączenia z API (kod ${response.status})`);
-      }
-
       const data = await response.json();
-      
-      if (!data.candidates || !data.candidates[0]?.content?.parts?.[0]?.text) {
-          throw new Error("AI nie zwróciło poprawnej odpowiedzi.");
+
+      if (!response.ok) {
+        console.error("Błąd Google API:", data);
+        throw new Error(data.error?.message || "Błąd komunikacji z API Google.");
       }
 
-      let jsonString = data.candidates[0].content.parts[0].text;
-      
-      // Bezpieczne czyszczenie z markdowna
-      jsonString = jsonString.replace(/`{3}json/gi, "").replace(/`{3}/g, "").trim();
-
+      // Format wymuszony jako application/json, więc możemy bezpiecznie parsować
+      const jsonString = data.candidates[0].content.parts[0].text;
       const wygenerowaneCwiczenia = JSON.parse(jsonString);
 
       const dni = [...plan.treningiTygodnia];
       dni[wybranyIdx].cwiczeniaIZadania = wygenerowaneCwiczenia;
       zapiszZmiany({ ...plan, treningiTygodnia: dni });
+
     } catch (err: any) {
       console.error("Szczegóły błędu AI:", err);
-      alert(`Nie udało się wygenerować planu: ${err.message}`);
+      alert(`Błąd: ${err.message}`);
     } finally {
       setLadujeAi(false);
     }
