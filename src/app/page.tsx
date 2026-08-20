@@ -5,6 +5,7 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
+
 export default function PulpitGłówny() {
   const router = useRouter();
   const [plan, setPlan] = useState<any>(null);
@@ -376,6 +377,7 @@ export default function PulpitGłówny() {
   const celTluszcze = plan?.makroskladniki?.tluszczeGramy || 70;
   
   const zostaloKcal = celKcal - sumaKcal;
+  
 
   return (
     <div className="max-w-2xl mx-auto p-6 text-white min-h-screen bg-zinc-950 space-y-6 pb-16">
