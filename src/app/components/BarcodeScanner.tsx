@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from 'react';
-import { BrowserMultiFormatReader } from '@zxing/library';
+import { BrowserMultiFormatReader, NotFoundException, ChecksumException, FormatException } from '@zxing/library';
 
 interface BarcodeScannerProps {
   onScanSuccess: (barcode: string) => void;
@@ -22,8 +22,21 @@ export default function BarcodeScanner({ onScanSuccess, onScanError }: BarcodeSc
         if (videoInputDevices.length === 0) {
           throw new Error("Nie znaleziono żadnej kamery w urządzeniu.");
         }
-        // Wybieramy domyślną kamerę (zazwyczaj tylną w telefonie lub przednią w laptopie)
-        const selectedDeviceId = videoInputDevices[0].deviceId;
+
+        const tylnaKamera = videoInputDevices.find((device) => {
+          const label = device.label.toLowerCase();
+          return (
+            label.includes('back') ||
+            label.includes('rear') ||
+            label.includes('environment') ||
+            label.includes('tył') ||
+            label.includes('tylna')
+          );
+        });
+
+        const selectedDeviceId = tylnaKamera 
+          ? tylnaKamera.deviceId 
+          : videoInputDevices[videoInputDevices.length - 1].deviceId;
 
         if (videoRef.current && isMounted) {
           codeReader.decodeFromVideoDevice(
@@ -32,12 +45,21 @@ export default function BarcodeScanner({ onScanSuccess, onScanError }: BarcodeSc
             (result, err) => {
               if (result && isMounted) {
                 onScanSuccess(result.getText());
-                // Zatrzymujemy czytnik po udanym zeskanowaniu
                 codeReader.reset();
               }
-              if (err && !(err.name === 'NotFoundException')) {
-                // Ignorujemy zwykłe błędy typu "brak kodu w kadrze"
-                console.debug(err);
+              
+              // Całkowite wyciszenie powtarzających się wyjątków skanowania klatek
+              if (err) {
+                if (
+                  err instanceof NotFoundException ||
+                  err instanceof ChecksumException ||
+                  err instanceof FormatException ||
+                  err.name === 'NotFoundException' ||
+                  err.name === 'ChecksumException' ||
+                  err.name === 'FormatException'
+                ) {
+                  return; // Ignoruj klatki bez kodu kreskowego
+                }
               }
             }
           );
@@ -45,6 +67,9 @@ export default function BarcodeScanner({ onScanSuccess, onScanError }: BarcodeSc
       })
       .catch((err) => {
         if (isMounted) {
+          // Ignoruj błąd jednoczesnego odtwarzania strumienia
+          if (err.name === 'AbortError' || err.message?.includes('already playing')) return;
+          
           setBłąd(err.message || "Błąd dostępu do kamery.");
           if (onScanError) onScanError(err.message);
         }
@@ -68,6 +93,8 @@ export default function BarcodeScanner({ onScanSuccess, onScanError }: BarcodeSc
           <video 
             ref={videoRef} 
             className="w-full h-full object-cover"
+            playsInline
+            muted
           />
           <div className="absolute inset-0 border-2 border-dashed border-emerald-500/50 m-12 pointer-events-none rounded-lg flex items-center justify-center">
             <span className="text-white/70 text-xs bg-black/60 px-2 py-1 rounded">Skieruj kod w to miejsce</span>

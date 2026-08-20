@@ -17,8 +17,16 @@ export default function PulpitGłówny() {
   // Stan treningów
   const [wybranyDzienIdx, setWybranyDzienIdx] = useState<number>(0);
   const [wybraneCwiczenie, setWybraneCwiczenie] = useState('');
-  const [serie, setSerie] = useState<Array<{ set: number, ciezar: string, powtorzenia: string, ukoczona: boolean }>>([
-    { set: 1, ciezar: '', powtorzenia: '', ukoczona: false }
+  const [typCwiczenia, setTypCwiczenia] = useState<'silowe' | 'plywanie' | 'cardio' | 'status'>('silowe');
+  const [serie, setSerie] = useState<Array<{ 
+    set: number; 
+    ciezar: string; 
+    powtorzenia: string; 
+    dystans: string; 
+    czas: string; 
+    ukoczona: boolean 
+  }>>([
+    { set: 1, ciezar: '', powtorzenia: '', dystans: '', czas: '', ukoczona: false }
   ]);
   const [treningiZapis, setTreningiZapis] = useState<any[]>([]);
 
@@ -106,15 +114,134 @@ export default function PulpitGłówny() {
     const ostatniTrening = historiaDlaCwiczenia[historiaDlaCwiczenia.length - 1];
     if (!ostatniTrening.serie || !ostatniTrening.serie[nrSerii - 1]) return "-";
     const prevS = ostatniTrening.serie[nrSerii - 1];
+    
+    if (prevS.dystans || prevS.czas) {
+      return `${prevS.dystans ? prevS.dystans : ''} ${prevS.czas ? prevS.czas : ''}`.trim() || "✓";
+    }
     return `${prevS.ciezar || 0} x ${prevS.powtorzenia || 0}`;
   };
 
-  const dodajSerie = () => setSerie([...serie, { set: serie.length + 1, ciezar: '', powtorzenia: '', ukoczona: false }]);
-  const zmianaSerii = (index: number, pole: 'ciezar' | 'powtorzenia', wartosc: string) => {
+  // ULEPSZONE ROZPOZNAWANIE I AUTO-UZUPEŁNIANIE
+  const wybierzCwiczenieIZainicjalizuj = (cw: any, aktualnyDzien: any) => {
+    setWybraneCwiczenie(cw.nazwa);
+    
+    const nazwaLower = (cw.nazwa || '').toLowerCase();
+    const opisSerii = (cw.opisSerii || cw.opis || cw.serieInfo || '').toString().toLowerCase();
+    const dzienTypLower = (aktualnyDzien?.typ || '').toLowerCase();
+    const dzienTytulLower = (aktualnyDzien?.tytul || '').toLowerCase();
+
+    // 1. Rozpoznanie typu ćwiczenia
+    let wykrytyTyp: 'silowe' | 'plywanie' | 'cardio' | 'status' = 'silowe';
+
+    const czyBasen = 
+      dzienTypLower.includes('basen') || 
+      dzienTypLower.includes('pływ') || 
+      dzienTytulLower.includes('basen') || 
+      dzienTytulLower.includes('pływ') ||
+      nazwaLower.includes('pływ') || 
+      nazwaLower.includes('kraul') || 
+      nazwaLower.includes('grzbiet') || 
+      nazwaLower.includes('żabk') || 
+      nazwaLower.includes('delfin') ||
+      nazwaLower.includes('styl') ||
+      nazwaLower.includes('deska') || 
+      nazwaLower.includes('deską') ||
+      nazwaLower.includes('płetw') ||
+      nazwaLower.includes('rozpływ') ||
+      nazwaLower.includes('basen');
+
+    const czyCardio = 
+      nazwaLower.includes('ergometr') || 
+      nazwaLower.includes('wioślarz') || 
+      nazwaLower.includes('bieżn') || 
+      nazwaLower.includes('rower') || 
+      nazwaLower.includes('cardio') || 
+      nazwaLower.includes('orbitrek') ||
+      nazwaLower.includes('skakank');
+
+    const czyStatus = 
+      nazwaLower.includes('rozciąg') || 
+      nazwaLower.includes('mobilno') || 
+      nazwaLower.includes('spacer') || 
+      nazwaLower.includes('plank') ||
+      nazwaLower.includes('sauna');
+
+    if (czyBasen) {
+      wykrytyTyp = 'plywanie';
+    } else if (czyCardio) {
+      wykrytyTyp = 'cardio';
+    } else if (czyStatus) {
+      wykrytyTyp = 'status';
+    }
+
+    setTypCwiczenia(wykrytyTyp);
+
+    // 2. Wyciąganie liczby serii oraz powtórzeń/dystansu
+    let iloscSerii = 1;
+    let autoReps = '';
+    let autoDystans = '';
+
+    // Bezpośrednio z pól obiektu jeśli istnieją
+    if (cw.serie && !isNaN(Number(cw.serie))) {
+      iloscSerii = Number(cw.serie);
+    }
+    if (cw.powtorzenia) {
+      autoReps = cw.powtorzenia.toString();
+    }
+
+    // Parsowanie ciągu znaków (np. "3x12", "3 x 15", "1x100m", "4x50m", "3x8-10")
+    const matchNxM = opisSerii.match(/(\d+)\s*[xX×*]\s*([0-9a-zA-Z\-]+)/);
+    if (matchNxM) {
+      iloscSerii = parseInt(matchNxM[1]) || iloscSerii;
+      const parametr = matchNxM[2];
+      if (wykrytyTyp === 'plywanie') {
+        autoDystans = parametr.includes('m') ? parametr : `${parametr}m`;
+      } else {
+        autoReps = parametr.replace(/[^0-9\-]/g, '');
+      }
+    } else {
+      const matchDystansSolo = opisSerii.match(/(\d+)\s*m/);
+      if (matchDystansSolo) {
+        autoDystans = `${matchDystansSolo[1]}m`;
+      }
+    }
+
+    // Bezpieczny limit serii (1 do 10)
+    const finalnaIloscSerii = Math.max(1, Math.min(iloscSerii, 10));
+
+    const noweSerie = Array.from({ length: finalnaIloscSerii }, (_, i) => ({
+      set: i + 1,
+      ciezar: '',
+      powtorzenia: autoReps,
+      dystans: autoDystans,
+      czas: '',
+      ukoczona: false
+    }));
+
+    setSerie(noweSerie);
+  };
+
+  const dodajSerie = () => {
+    const prev = serie[serie.length - 1];
+    setSerie([
+      ...serie, 
+      { 
+        set: serie.length + 1, 
+        ciezar: prev?.ciezar || '', 
+        powtorzenia: prev?.powtorzenia || '', 
+        dystans: prev?.dystans || '', 
+        czas: '', 
+        ukoczona: false 
+      }
+    ]);
+  };
+
+  const zmianaSerii = (index: number, pole: 'ciezar' | 'powtorzenia' | 'dystans' | 'czas', wartosc: string) => {
     const zaktualizowane = [...serie];
     zaktualizowane[index][pole] = wartosc;
     setSerie(zaktualizowane);
   };
+
   const toggleUkoczona = (index: number) => {
     const zaktualizowane = [...serie];
     zaktualizowane[index].ukoczona = !zaktualizowane[index].ukoczona;
@@ -124,22 +251,37 @@ export default function PulpitGłówny() {
   const zapiszWynikTreningu = (e: React.FormEvent) => {
     e.preventDefault();
     if (!wybraneCwiczenie) return;
-    const ukoczoneSerie = serie.filter(s => s.ukoczona && s.ciezar && s.powtorzenia);
+    
+    const ukoczoneSerie = serie.filter(s => s.ukoczona);
     if (ukoczoneSerie.length === 0) {
       alert("Zaznacz przynajmniej jedną ukończoną serię (zielony przycisk z fajką), aby zapisać wynik!");
       return;
     }
+
+    let podsumowanieStr = '';
+    if (typCwiczenia === 'plywanie') {
+      podsumowanieStr = ukoczoneSerie.map(s => `S${s.set}: ${s.dystans || 'Dystans'} ${s.czas ? '(' + s.czas + ')' : ''}`.trim()).join(' | ');
+    } else if (typCwiczenia === 'cardio') {
+      podsumowanieStr = ukoczoneSerie.map(s => `S${s.set}: ${s.czas ? s.czas + 'min' : ''} ${s.dystans ? '(' + s.dystans + ')' : ''}`.trim() || 'Zaliczone').join(' | ');
+    } else if (typCwiczenia === 'status') {
+      podsumowanieStr = `Zrobione (${ukoczoneSerie.length} serii)`;
+    } else {
+      podsumowanieStr = ukoczoneSerie.map(s => `S${s.set}: ${s.ciezar || 0}kg×${s.powtorzenia || 0}`).join(' | ');
+    }
+
     const nowyWynik = {
       id: Date.now(),
       cwiczenie: wybraneCwiczenie,
+      typ: typCwiczenia,
       serie: ukoczoneSerie,
       data: wybranaData, 
-      podsumowanie: ukoczoneSerie.map(s => `S${s.set}: ${s.ciezar}kg×${s.powtorzenia}`).join(' | ')
+      podsumowanie: podsumowanieStr
     };
+
     const zaktualizowane = [...treningiZapis, nowyWynik];
     setTreningiZapis(zaktualizowane);
     localStorage.setItem('moje_treningi_dzis', JSON.stringify(zaktualizowane));
-    setSerie([{ set: 1, ciezar: '', powtorzenia: '', ukoczona: false }]);
+    setWybraneCwiczenie('');
   };
 
   const usunWynik = (id: number) => {
@@ -289,7 +431,6 @@ export default function PulpitGłówny() {
           <div className="bg-emerald-500 h-full transition-all" style={{ width: `${Math.min(100, (sumaKcal / celKcal) * 100)}%` }}></div>
         </div>
 
-        {/* NOWA KOLEJNOŚĆ B/T/W W PODSUMOWANIU */}
         <div className="grid grid-cols-3 gap-2 text-center pt-2">
           <div className="bg-zinc-800/40 rounded-xl p-2 border border-zinc-800">
             <p className="text-[10px] text-zinc-400 uppercase tracking-wider">Białko</p>
@@ -345,15 +486,12 @@ export default function PulpitGłówny() {
                     return (
                       <div 
                         key={cIdx}
-                        onClick={() => {
-                          setWybraneCwiczenie(cw.nazwa);
-                          setSerie([{ set: 1, ciezar: '', powtorzenia: '', ukoczona: false }]);
-                        }}
+                        onClick={() => wybierzCwiczenieIZainicjalizuj(cw, aktualnyDzienObj)}
                         className={`p-3 rounded-xl border cursor-pointer transition flex flex-col gap-1 ${isSelected ? 'bg-emerald-950/40 border-emerald-500 shadow' : 'bg-zinc-900 border-zinc-800 hover:border-zinc-700'}`}
                       >
                         <div className="flex justify-between items-center">
                           <span className="font-bold text-white text-xs">{cw.nazwa}</span>
-                          <span className="text-[10px] text-zinc-400 bg-zinc-800 px-2 py-0.5 rounded">Plan: {cw.opisSerii}</span>
+                          <span className="text-[10px] text-zinc-400 bg-zinc-800 px-2 py-0.5 rounded">Plan: {cw.opisSerii || (cw.serie && cw.powtorzenia ? `${cw.serie}x${cw.powtorzenia}` : '')}</span>
                         </div>
                         <p className="text-[11px] text-emerald-400 font-medium">{ostatniStatus}</p>
                       </div>
@@ -368,36 +506,111 @@ export default function PulpitGłówny() {
                       <button onClick={() => setWybraneCwiczenie('')} className="text-xs text-zinc-500 hover:text-white">Zamknij</button>
                     </div>
 
+                    {/* DYNAMICZNE NAGŁÓWKI */}
                     <div className="grid grid-cols-12 gap-2 text-[10px] text-zinc-400 uppercase font-bold text-center pt-2">
                       <span className="col-span-1">SET</span>
-                      <span className="col-span-4">PREV</span>
-                      <span className="col-span-3">KG</span>
-                      <span className="col-span-3">REPS</span>
-                      <span className="col-span-1">✅</span>
+                      <span className="col-span-3">PREV</span>
+                      {typCwiczenia === 'silowe' && (
+                        <>
+                          <span className="col-span-3">KG</span>
+                          <span className="col-span-3">POWT</span>
+                        </>
+                      )}
+                      {typCwiczenia === 'plywanie' && (
+                        <>
+                          <span className="col-span-4">DYSTANS</span>
+                          <span className="col-span-2">CZAS</span>
+                        </>
+                      )}
+                      {typCwiczenia === 'cardio' && (
+                        <>
+                          <span className="col-span-3">CZAS</span>
+                          <span className="col-span-3">DYSTANS</span>
+                        </>
+                      )}
+                      {typCwiczenia === 'status' && (
+                        <span className="col-span-6">ZALICZENIE</span>
+                      )}
+                      <span className="col-span-2 text-right pr-2">STATUS</span>
                     </div>
 
+                    {/* WIERSZE SERII */}
                     {serie.map((s, idx) => {
                       const prevWynik = pobierzPoprzedniWynikDlaSerii(wybraneCwiczenie, s.set);
 
                       return (
                         <div key={idx} className={`grid grid-cols-12 gap-2 items-center p-1.5 rounded-lg transition ${s.ukoczona ? 'bg-emerald-950/40 border border-emerald-500/30' : 'bg-zinc-800/40'}`}>
                           <span className="col-span-1 text-xs font-bold text-emerald-400 text-center">{s.set}</span>
-                          <span className="col-span-4 text-[11px] text-zinc-400 text-center truncate">{prevWynik}</span>
-                          <div className="col-span-3">
-                            <input 
-                              type="number" step="0.5" value={s.ciezar} 
-                              onChange={(e) => zmianaSerii(idx, 'ciezar', e.target.value)}
-                              placeholder="kg" className="w-full bg-zinc-800 border border-zinc-700 rounded p-1.5 text-center text-white text-xs font-bold"
-                            />
-                          </div>
-                          <div className="col-span-3">
-                            <input 
-                              type="number" value={s.powtorzenia} 
-                              onChange={(e) => zmianaSerii(idx, 'powtorzenia', e.target.value)}
-                              placeholder="reps" className="w-full bg-zinc-800 border border-zinc-700 rounded p-1.5 text-center text-white text-xs font-bold"
-                            />
-                          </div>
-                          <div className="col-span-1 text-center">
+                          <span className="col-span-3 text-[11px] text-zinc-400 text-center truncate">{prevWynik}</span>
+
+                          {/* SIŁOWNIA */}
+                          {typCwiczenia === 'silowe' && (
+                            <>
+                              <div className="col-span-3">
+                                <input 
+                                  type="number" step="0.5" value={s.ciezar} 
+                                  onChange={(e) => zmianaSerii(idx, 'ciezar', e.target.value)}
+                                  placeholder="kg" className="w-full bg-zinc-800 border border-zinc-700 rounded p-1.5 text-center text-white text-xs font-bold"
+                                />
+                              </div>
+                              <div className="col-span-3">
+                                <input 
+                                  type="text" value={s.powtorzenia} 
+                                  onChange={(e) => zmianaSerii(idx, 'powtorzenia', e.target.value)}
+                                  placeholder="reps" className="w-full bg-zinc-800 border border-zinc-700 rounded p-1.5 text-center text-white text-xs font-bold"
+                                />
+                              </div>
+                            </>
+                          )}
+
+                          {/* PŁYWANIE */}
+                          {typCwiczenia === 'plywanie' && (
+                            <>
+                              <div className="col-span-4">
+                                <input 
+                                  type="text" value={s.dystans} 
+                                  onChange={(e) => zmianaSerii(idx, 'dystans', e.target.value)}
+                                  placeholder="np. 100m" className="w-full bg-zinc-800 border border-zinc-700 rounded p-1.5 text-center text-white text-xs font-bold"
+                                />
+                              </div>
+                              <div className="col-span-2">
+                                <input 
+                                  type="text" value={s.czas} 
+                                  onChange={(e) => zmianaSerii(idx, 'czas', e.target.value)}
+                                  placeholder="min:s" className="w-full bg-zinc-800 border border-zinc-700 rounded p-1.5 text-center text-white text-xs font-bold"
+                                />
+                              </div>
+                            </>
+                          )}
+
+                          {/* CARDIO / ERGOMETR */}
+                          {typCwiczenia === 'cardio' && (
+                            <>
+                              <div className="col-span-3">
+                                <input 
+                                  type="text" value={s.czas} 
+                                  onChange={(e) => zmianaSerii(idx, 'czas', e.target.value)}
+                                  placeholder="min" className="w-full bg-zinc-800 border border-zinc-700 rounded p-1.5 text-center text-white text-xs font-bold"
+                                />
+                              </div>
+                              <div className="col-span-3">
+                                <input 
+                                  type="text" value={s.dystans} 
+                                  onChange={(e) => zmianaSerii(idx, 'dystans', e.target.value)}
+                                  placeholder="dystans" className="w-full bg-zinc-800 border border-zinc-700 rounded p-1.5 text-center text-white text-xs font-bold"
+                                />
+                              </div>
+                            </>
+                          )}
+
+                          {/* ROZCIĄGANIE */}
+                          {typCwiczenia === 'status' && (
+                            <div className="col-span-6 text-center text-xs text-zinc-400">
+                              Odhacz wykonanie
+                            </div>
+                          )}
+
+                          <div className="col-span-2 flex justify-end pr-2">
                             <button 
                               type="button" 
                               onClick={() => toggleUkoczona(idx)}
@@ -471,7 +684,6 @@ export default function PulpitGłówny() {
             </button>
           </div>
           
-          {/* NOWA KOLEJNOŚĆ I PODPISY: Kcal, Białko, Tłuszcze, Węgle */}
           <div className="grid grid-cols-4 gap-2">
             <div>
               <label className="text-[10px] text-zinc-400 mb-1 block">Kcal</label>
@@ -515,7 +727,6 @@ export default function PulpitGłówny() {
                 <p className="text-[10px] text-zinc-400 mt-0.5">
                   <span className="text-emerald-400 font-medium">{p.kalorie} kcal</span>
                   {p.bialko > 0 || p.weglowodany > 0 || p.tluszcze > 0 
-                    // Nowa kolejność B/T/W na liście zjedzonych posiłków
                     ? ` (B: ${p.bialko || 0}g, T: ${p.tluszcze || 0}g, W: ${p.weglowodany || 0}g)` 
                     : ''}
                 </p>
