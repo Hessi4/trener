@@ -1,4 +1,4 @@
-// src/components/ChatAssistant.tsx
+// src/app/components/ChatAssistant.tsx
 "use client";
 
 import React, { useState, useRef, useEffect } from 'react';
@@ -139,16 +139,18 @@ export default function ChatAssistant({ onPlanUpdated, onPosilekAdded }: ChatAss
           {/* SZYBKIE PODPOWIEDZI (CHIPSY) */}
           <div className="p-2 bg-zinc-950 border-t border-zinc-800/80 flex gap-1.5 overflow-x-auto text-[11px]">
             <button 
-              onClick={() => wyslijWiadomosc("Boli mnie bark, zamień wyciskanie na coś bezpiecznego")} 
+              type="button"
+              onClick={() => wyslijWiadomosc("Podsumuj mój dzisiejszy bilans kalorii, makroskładniki i postępy treningowe")} 
               className="bg-zinc-800 hover:bg-zinc-700 text-zinc-300 px-2.5 py-1 rounded-lg whitespace-nowrap transition border border-zinc-700"
             >
-              🩹 Boli mnie bark
+              📊 Podsumowanie dnia
             </button>
             <button 
-              onClick={() => wyslijWiadomosc("Zjadłem jabłko i garść orzechów")} 
+              type="button"
+              onClick={() => wyslijWiadomosc("Daj mi 2-3 konkretne wskazówki dotyczące dzisiejszego treningu i diety")} 
               className="bg-zinc-800 hover:bg-zinc-700 text-zinc-300 px-2.5 py-1 rounded-lg whitespace-nowrap transition border border-zinc-700"
             >
-              🍎 Szybka przekąska
+              💡 Wskazówki trenera
             </button>
           </div>
 
