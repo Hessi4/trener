@@ -11,7 +11,7 @@ interface ChatAssistantProps {
 export default function ChatAssistant({ onPlanUpdated, onPosilekAdded }: ChatAssistantProps) {
   const [otwarty, setOtwarty] = useState(false);
   const [wiadomosci, setWiadomosci] = useState<Array<{ rola: 'user' | 'ai'; tekst: string }>>([
-    { rola: 'ai', tekst: 'Cześć! Jestem Twoim trenerem. Możesz zapytać o technikę, poprosić o zamianę ćwiczenia w locie (np. gdy coś boli) lub napisać co zjadłeś, a dodam to do kalorii!' }
+    { rola: 'ai', tekst: 'Cześć! Jestem Twoim trenerem. Możesz zapytać o technikę, poprosić o podsumowanie dnia, zamianę ćwiczenia lub dopisać posiłek!' }
   ]);
   const [inputTekst, setInputTekst] = useState('');
   const [laduje, setLaduje] = useState(false);
@@ -35,6 +35,13 @@ export default function ChatAssistant({ onPlanUpdated, onPosilekAdded }: ChatAss
     try {
       const zapisanyPlan = localStorage.getItem('wygenerowany_plan_ai');
       const aktualnyPlan = zapisanyPlan ? JSON.parse(zapisanyPlan) : null;
+      
+      const zapisaneTreningiRaw = localStorage.getItem('moje_treningi_dzis');
+      const zapisaneTreningi = zapisaneTreningiRaw ? JSON.parse(zapisaneTreningiRaw) : [];
+
+      const zapisanePosilkiRaw = localStorage.getItem('moje_posilki_dzis');
+      const zapisanePosilki = zapisanePosilkiRaw ? JSON.parse(zapisanePosilkiRaw) : [];
+
       const dzis = new Date().toISOString().split('T')[0];
 
       const res = await fetch('/api/asystent/chat', {
@@ -43,6 +50,8 @@ export default function ChatAssistant({ onPlanUpdated, onPosilekAdded }: ChatAss
         body: JSON.stringify({
           wiadomosc: tresc,
           aktualnyPlan,
+          zapisaneTreningi,
+          zapisanePosilki,
           historiaRozmowy: nowaHistoria.slice(-6),
           dzisiejszaData: dzis
         })
@@ -61,8 +70,6 @@ export default function ChatAssistant({ onPlanUpdated, onPosilekAdded }: ChatAss
 
       // Akcja: dodanie posiłku
       if (data.typAkcji === 'DODAJ_POSILEK' && data.nowyPosilek) {
-        const zapisanePosilki = localStorage.getItem('moje_posilki_dzis');
-        const aktualne = zapisanePosilki ? JSON.parse(zapisanePosilki) : [];
         const meal = {
           id: Date.now(),
           nazwa: data.nowyPosilek.nazwa,
@@ -72,7 +79,7 @@ export default function ChatAssistant({ onPlanUpdated, onPosilekAdded }: ChatAss
           tluszcze: Number(data.nowyPosilek.tluszcze) || 0,
           data: dzis
         };
-        const zaktualizowane = [...aktualne, meal];
+        const zaktualizowane = [...zapisanePosilki, meal];
         localStorage.setItem('moje_posilki_dzis', JSON.stringify(zaktualizowane));
         if (onPosilekAdded) onPosilekAdded(meal);
       }
@@ -86,7 +93,7 @@ export default function ChatAssistant({ onPlanUpdated, onPosilekAdded }: ChatAss
 
   return (
     <>
-      {/* PŁYWAJĄCY PRZYCISK W PRAWYM DOLNYM ROGU */}
+      {/* PŁYWAJĄCY PRZYCISK */}
       <button
         onClick={() => setOtwarty(!otwarty)}
         className="fixed bottom-6 right-6 z-50 bg-emerald-500 hover:bg-emerald-400 text-zinc-950 font-bold p-4 rounded-full shadow-2xl transition transform hover:scale-105 flex items-center justify-center border-2 border-emerald-300"
@@ -102,13 +109,13 @@ export default function ChatAssistant({ onPlanUpdated, onPosilekAdded }: ChatAss
       {/* OKNO CZATU */}
       {otwarty && (
         <div className="fixed bottom-24 right-4 sm:right-6 w-[92vw] sm:w-96 max-h-[75vh] h-[520px] bg-zinc-900 border border-zinc-800 rounded-2xl shadow-2xl z-50 flex flex-col overflow-hidden animate-in fade-in slide-in-from-bottom-5">
-          {/* NAGŁÓWEK CZATU */}
+          {/* NAGŁÓWEK */}
           <div className="bg-zinc-950 p-3.5 border-b border-zinc-800 flex justify-between items-center">
             <div className="flex items-center gap-2">
               <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
               <div>
                 <h3 className="text-xs font-bold text-white">Trener AI</h3>
-                <p className="text-[10px] text-zinc-400">Na bieżąco dostosowuje Twój plan i dietę</p>
+                <p className="text-[10px] text-zinc-400">Na bieżąco analizuje Twój trening i dietę</p>
               </div>
             </div>
             <button onClick={() => setOtwarty(false)} className="text-zinc-400 hover:text-white text-sm px-2">✕</button>
@@ -130,13 +137,13 @@ export default function ChatAssistant({ onPlanUpdated, onPosilekAdded }: ChatAss
             {laduje && (
               <div className="flex justify-start">
                 <div className="bg-zinc-800 text-zinc-400 text-xs p-2.5 rounded-xl border border-zinc-700/60 animate-pulse">
-                  Trener myśli... ⏳
+                  Trener analizuje dane... ⏳
                 </div>
               </div>
             )}
           </div>
 
-          {/* SZYBKIE PODPOWIEDZI (CHIPSY) */}
+          {/* SZYBKIE PODPOWIEDZI */}
           <div className="p-2 bg-zinc-950 border-t border-zinc-800/80 flex gap-1.5 overflow-x-auto text-[11px]">
             <button 
               type="button"

@@ -4,48 +4,54 @@ export const dynamic = 'force-dynamic';
 
 export async function POST(req: Request) {
   try {
-    const { wiadomosc, aktualnyPlan, historiaRozmowy, dzisiejszaData } = await req.json();
+    const { wiadomosc, aktualnyPlan, zapisaneTreningi, zapisanePosilki, historiaRozmowy, dzisiejszaData } = await req.json();
     const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY || process.env.GEMINI_API_KEY;
 
     if (!apiKey) return Response.json({ error: "Brak klucza API." }, { status: 500 });
 
-    const prompt = `Jesteś elitarnym trenerem personalnym i dietetykiem w aplikacji użytkownika.
-Użytkownik pisze do Ciebie wiadomość: "${wiadomosc}".
+    // Filtrujemy dane z dzisiejszego dnia
+    const dzisiejszeTreningi = (zapisaneTreningi || []).filter((t: any) => t.data === dzisiejszaData);
+    const dzisiejszePosilki = (zapisanePosilki || []).filter((p: any) => p.data === dzisiejszaData);
 
-Kontekst użytkownika:
-- Aktualny plan treningowy/dietetyczny: ${JSON.stringify(aktualnyPlan || {})}
-- Dzisiejsza data: ${dzisiejszaData}
-- Ostatnia historia rozmowy: ${JSON.stringify(historiaRozmowy || [])}
+    const prompt = `Jesteś profesjonalnym trenerem personalnym i dietetykiem w aplikacji użytkownika.
+Użytkownik pisze: "${wiadomosc}".
 
-Twoje zadanie to przeanalizować intencję użytkownika i zwrócić WYŁĄCZNIE obiekt JSON w jednym z trzech formatów:
+DANE UŻYTKOWNIKA NA DZIEŃ DZISIEJSZY (${dzisiejszaData}):
+- WYKONANE DZISIAJ TRENINGI/SERIE: ${JSON.stringify(dzisiejszeTreningi)}
+- ZJEDZONE DZISIAJ POSIŁKI: ${JSON.stringify(dzisiejszePosilki)}
+- OGÓLNY PLAN I CELE MAKRO: ${JSON.stringify(aktualnyPlan || {})}
+- HISTORIA CZATU: ${JSON.stringify(historiaRozmowy || [])}
 
-1. Jeśli użytkownik prosi o PORADĘ, PYTA O COŚ LUB ROZMAWIA:
+Twoje zadanie:
+Przeanalizuj pytanie użytkownika. Jeśli prosi o podsumowanie dnia, odnieś się DOKŁADNIE do zarejestrowanych dzisiejszych treningów (serie, ciężary, dystanse, czasy) oraz posiłków (zjedzone kalorie vs cel).
+
+Zwróć WYŁĄCZNIE poprawny format JSON (bez bloków markdown, bez tekstu poza JSON):
+
+1. Jeśli odpowiadasz / podsumowujesz dzień / dajesz poradę:
 {
   "typAkcji": "ODPOWIEDZ",
-  "odpowiedz": "Twoja zwięzła, profesjonalna i pomocna odpowiedź po polsku."
+  "odpowiedz": "Twoja konkretna, czytelna odpowiedź z podsumowaniem (np. punktowo: Trening, Dieta, Wnioski)."
 }
 
-2. Jeśli użytkownik zgłasza BÓL, BRAK SPRZĘTU LUB PROSI O ZAMIANĘ/MODYFIKACJĘ PLANU TRENINGOWEGO:
+2. Jeśli użytkownik prosi o ZMIANĘ / ZASTĄPIENIE ćwiczeń w planie:
 {
   "typAkcji": "ZMIEN_PLAN",
-  "odpowiedz": "Wyjaśnienie, co i dlaczego zmieniłeś w planie na dzisiaj/w tygodniu.",
-  "zaktualizowanyPlan": { ...pełny obiekt planu taki jak w kontekście, ale z wprowadzonymi bezpiecznymi zamianami ćwiczeń... }
+  "odpowiedz": "Opis co zmieniłeś i dlaczego.",
+  "zaktualizowanyPlan": { ...cały zaktualizowany obiekt planu... }
 }
 
-3. Jeśli użytkownik pisze, że COŚ ZJADŁ / WYPIŁ (np. "zjadłem banana i wypiłem monsterka"):
+3. Jeśli użytkownik zgłasza nowy posiłek (np. "zjadłem 2 banany"):
 {
   "typAkcji": "DODAJ_POSILEK",
-  "odpowiedz": "Krótkie potwierdzenie, np. 'Dodałem banana i Monster Ultra (135 kcal) do Twojego bilansu!'",
+  "odpowiedz": "Krótkie potwierdzenie dodania.",
   "nowyPosilek": {
-    "nazwa": "Dokładna nazwa produktów",
-    "kalorie": 135,
-    "bialko": 1.5,
-    "weglowodany": 30,
-    "tluszcze": 0.3
+    "nazwa": "Nazwa posiłku",
+    "kalorie": 200,
+    "bialko": 2.5,
+    "weglowodany": 50,
+    "tluszcze": 0.5
   }
-}
-
-Zwróć TYLKO czysty JSON zaczynający się od '{' i kończący na '}'. Bez markdowna.`;
+}`;
 
     const url = 'https://generativelanguage.googleapis.com/v1/models/gemini-3.6-flash:generateContent?key=' + apiKey;
 
@@ -54,7 +60,7 @@ Zwróć TYLKO czysty JSON zaczynający się od '{' i kończący na '}'. Bez mark
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         contents: [{ role: 'user', parts: [{ text: prompt }] }],
-        generationConfig: { temperature: 0.4 }
+        generationConfig: { temperature: 0.3 }
       })
     });
 
