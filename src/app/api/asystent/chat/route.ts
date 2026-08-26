@@ -11,8 +11,9 @@ export async function POST(req: Request) {
     if (!apiKey) return Response.json({ error: "Brak klucza API GEMINI_API_KEY w zmiennych środowiskowych." }, { status: 500 });
 
     // Filtrujemy dane z dzisiejszego dnia
-    const dzisiejszeTreningi = (zapisaneTreningi || []).filter((t: any) => t.data === dzisiejszaData);
-    const dzisiejszePosilki = (zapisanePosilki || []).filter((p: any) => p.data === dzisiejszaData);
+    
+    const dzisiejszeTreningi = zapisaneTreningi || [];
+    const dzisiejszePosilki = zapisanePosilki || [];
 
     const prompt = `Jesteś profesjonalnym trenerem personalnym i dietetykiem w aplikacji użytkownika.
 Użytkownik pisze: "${wiadomosc}".
@@ -92,4 +93,6 @@ Zwróć WYŁĄCZNIE poprawny format JSON (schemat wyjściowy):
     console.error("Błąd Chat API:", error);
     return Response.json({ error: error?.message || 'Błąd serwera czatu.' }, { status: 500 });
   }
+
+  
 }

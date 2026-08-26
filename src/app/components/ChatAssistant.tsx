@@ -2,6 +2,7 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from 'react';
+import { supabase } from '@/app/lib/supabase';
 
 interface ChatAssistantProps {
   onPlanUpdated?: (nowyPlan: any) => void;
@@ -33,16 +34,52 @@ export default function ChatAssistant({ onPlanUpdated, onPosilekAdded }: ChatAss
     setLaduje(true);
 
     try {
-      const zapisanyPlan = localStorage.getItem('wygenerowany_plan_ai');
-      const aktualnyPlan = zapisanyPlan ? JSON.parse(zapisanyPlan) : null;
-      
-      const zapisaneTreningiRaw = localStorage.getItem('moje_treningi_dzis');
-      const zapisaneTreningi = zapisaneTreningiRaw ? JSON.parse(zapisaneTreningiRaw) : [];
-
-      const zapisanePosilkiRaw = localStorage.getItem('moje_posilki_dzis');
-      const zapisanePosilki = zapisanePosilkiRaw ? JSON.parse(zapisanePosilkiRaw) : [];
-
+      const { data: { user } } = await supabase.auth.getUser();
       const dzis = new Date().toISOString().split('T')[0];
+
+      let aktualnyPlan = null;
+      let zapisaneTreningi: any[] = [];
+      let zapisanePosilki: any[] = [];
+
+      if (user) {
+        // 1. Pobieramy aktualny plan z bazy Supabase
+        const { data: planData } = await supabase
+          .from('plany')
+          .select('dane_planu')
+          .eq('user_id', user.id)
+          .maybeSingle();
+        if (planData?.dane_planu) aktualnyPlan = planData.dane_planu;
+
+        // 2. Pobieramy dzisiejsze treningi
+        const { data: treningiData } = await supabase
+          .from('treningi')
+          .select('*')
+          .eq('user_id', user.id)
+          .eq('data', dzis);
+        if (treningiData) zapisaneTreningi = treningiData;
+
+        // 3. Pobieramy dzisiejsze posiłki
+        const { data: posilkiData } = await supabase
+          .from('posilki')
+          .select('*')
+          .eq('user_id', user.id)
+          .eq('data', dzis);
+        if (posilkiData) zapisanePosilki = posilkiData;
+      }
+
+      // Fallback do localStorage jeśli użytkownik nie jest zalogowany
+      if (!aktualnyPlan) {
+        const p = localStorage.getItem('wygenerowany_plan_ai');
+        if (p) aktualnyPlan = JSON.parse(p);
+      }
+      if (zapisaneTreningi.length === 0) {
+        const t = localStorage.getItem('moje_treningi_dzis');
+        if (t) zapisaneTreningi = JSON.parse(t);
+      }
+      if (zapisanePosilki.length === 0) {
+        const m = localStorage.getItem('moje_posilki_dzis');
+        if (m) zapisanePosilki = JSON.parse(m);
+      }
 
       const res = await fetch('/api/asystent/chat', {
         method: 'POST',
@@ -64,6 +101,11 @@ export default function ChatAssistant({ onPlanUpdated, onPosilekAdded }: ChatAss
 
       // Akcja: zmiana planu treningowego w locie
       if (data.typAkcji === 'ZMIEN_PLAN' && data.zaktualizowanyPlan) {
+        if (user) {
+          await supabase
+            .from('plany')
+            .upsert({ user_id: user.id, dane_planu: data.zaktualizowanyPlan }, { onConflict: 'user_id' });
+        }
         localStorage.setItem('wygenerowany_plan_ai', JSON.stringify(data.zaktualizowanyPlan));
         if (onPlanUpdated) onPlanUpdated(data.zaktualizowanyPlan);
       }
@@ -71,7 +113,6 @@ export default function ChatAssistant({ onPlanUpdated, onPosilekAdded }: ChatAss
       // Akcja: dodanie posiłku
       if (data.typAkcji === 'DODAJ_POSILEK' && data.nowyPosilek) {
         const meal = {
-          id: Date.now(),
           nazwa: data.nowyPosilek.nazwa,
           kalorie: Number(data.nowyPosilek.kalorie) || 0,
           bialko: Number(data.nowyPosilek.bialko) || 0,
@@ -79,6 +120,11 @@ export default function ChatAssistant({ onPlanUpdated, onPosilekAdded }: ChatAss
           tluszcze: Number(data.nowyPosilek.tluszcze) || 0,
           data: dzis
         };
+
+        if (user) {
+          await supabase.from('posilki').insert({ ...meal, user_id: user.id });
+        }
+        
         const zaktualizowane = [...zapisanePosilki, meal];
         localStorage.setItem('moje_posilki_dzis', JSON.stringify(zaktualizowane));
         if (onPosilekAdded) onPosilekAdded(meal);
@@ -93,23 +139,16 @@ export default function ChatAssistant({ onPlanUpdated, onPosilekAdded }: ChatAss
 
   return (
     <>
-      {/* PŁYWAJĄCY PRZYCISK */}
       <button
         onClick={() => setOtwarty(!otwarty)}
         className="fixed bottom-6 right-6 z-50 bg-emerald-500 hover:bg-emerald-400 text-zinc-950 font-bold p-4 rounded-full shadow-2xl transition transform hover:scale-105 flex items-center justify-center border-2 border-emerald-300"
         aria-label="Otwórz czat asystenta"
       >
-        {otwarty ? (
-          <span className="text-xl leading-none">✕</span>
-        ) : (
-          <span className="text-xl leading-none">💬</span>
-        )}
+        {otwarty ? <span className="text-xl leading-none">✕</span> : <span className="text-xl leading-none">💬</span>}
       </button>
 
-      {/* OKNO CZATU */}
       {otwarty && (
         <div className="fixed bottom-24 right-4 sm:right-6 w-[92vw] sm:w-96 max-h-[75vh] h-[520px] bg-zinc-900 border border-zinc-800 rounded-2xl shadow-2xl z-50 flex flex-col overflow-hidden animate-in fade-in slide-in-from-bottom-5">
-          {/* NAGŁÓWEK */}
           <div className="bg-zinc-950 p-3.5 border-b border-zinc-800 flex justify-between items-center">
             <div className="flex items-center gap-2">
               <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
@@ -121,7 +160,6 @@ export default function ChatAssistant({ onPlanUpdated, onPosilekAdded }: ChatAss
             <button onClick={() => setOtwarty(false)} className="text-zinc-400 hover:text-white text-sm px-2">✕</button>
           </div>
 
-          {/* LISTA WIADOMOŚCI */}
           <div ref={scrollRef} className="flex-1 overflow-y-auto p-3.5 space-y-3">
             {wiadomosci.map((w, idx) => (
               <div key={idx} className={`flex ${w.rola === 'user' ? 'justify-end' : 'justify-start'}`}>
@@ -143,7 +181,6 @@ export default function ChatAssistant({ onPlanUpdated, onPosilekAdded }: ChatAss
             )}
           </div>
 
-          {/* SZYBKIE PODPOWIEDZI */}
           <div className="p-2 bg-zinc-950 border-t border-zinc-800/80 flex gap-1.5 overflow-x-auto text-[11px]">
             <button 
               type="button"
@@ -161,7 +198,6 @@ export default function ChatAssistant({ onPlanUpdated, onPosilekAdded }: ChatAss
             </button>
           </div>
 
-          {/* POLE WPISYWANIA */}
           <form 
             onSubmit={(e) => { e.preventDefault(); wyslijWiadomosc(); }}
             className="p-2.5 bg-zinc-950 flex gap-2 border-t border-zinc-800"
@@ -169,7 +205,7 @@ export default function ChatAssistant({ onPlanUpdated, onPosilekAdded }: ChatAss
             <input 
               type="text" 
               value={inputTekst} 
-              onChange={(e) => setInputTekst(e.target.value)}
+              onChange={(e) => setInputTekst(e.target.value)} 
               placeholder="Napisz do trenera..."
               className="flex-1 bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
             />
