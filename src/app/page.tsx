@@ -4,7 +4,7 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-
+import { supabase } from '@/app/lib/supabase';
 
 export default function PulpitGłówny() {
   const router = useRouter();
@@ -42,29 +42,70 @@ export default function PulpitGłówny() {
   
   const [ladowanieAiPosilek, setLadowanieAiPosilek] = useState(false);
 
+  // GŁÓWNA INICJALIZACJA Z SUPABASE
   useEffect(() => {
-    const zapisanyPlan = localStorage.getItem('wygenerowany_plan_ai');
-    if (!zapisanyPlan) {
-      router.push('/ankieta-startowa');
-      return;
-    }
-    setPlan(JSON.parse(zapisanyPlan));
+    async function wczytajDaneZChmury() {
+      try {
+        // 1. Pobieranie planu z Supabase
+        const { data: planData } = await supabase
+          .from('plany')
+          .select('dane_planu')
+          .eq('id', 'domyslny_uzytkownik')
+          .single();
 
-    const zapisaneTreningi = localStorage.getItem('moje_treningi_dzis');
-    if (zapisaneTreningi) {
-      const parsedTreningi = JSON.parse(zapisaneTreningi);
-      const zmigrowaneT = parsedTreningi.map((t: any) => (t.data && t.data.includes('-')) ? t : { ...t, data: getDzis() });
-      setTreningiZapis(zmigrowaneT);
+        let aktualnyPlan = planData?.dane_planu;
+
+        // Fallback do localStorage jeśli w bazie jeszcze nie ma
+        if (!aktualnyPlan) {
+          const zapisanyLocal = localStorage.getItem('wygenerowany_plan_ai');
+          if (zapisanyLocal) {
+            aktualnyPlan = JSON.parse(zapisanyLocal);
+            // Wyślij do Supabase w tle
+            supabase.from('plany').upsert({ id: 'domyslny_uzytkownik', dane_planu: aktualnyPlan });
+          }
+        }
+
+        if (!aktualnyPlan) {
+          router.push('/ankieta-startowa');
+          return;
+        }
+
+        setPlan(aktualnyPlan);
+
+        // 2. Pobieranie treningów z Supabase
+        const { data: treningiData } = await supabase
+          .from('treningi')
+          .select('*')
+          .order('utworzono_at', { ascending: true });
+
+        if (treningiData && treningiData.length > 0) {
+          setTreningiZapis(treningiData);
+        } else {
+          const localT = localStorage.getItem('moje_treningi_dzis');
+          if (localT) setTreningiZapis(JSON.parse(localT));
+        }
+
+        // 3. Pobieranie posiłków z Supabase
+        const { data: posilkiData } = await supabase
+          .from('posilki')
+          .select('*')
+          .order('utworzono_at', { ascending: true });
+
+        if (posilkiData && posilkiData.length > 0) {
+          setPosilki(posilkiData);
+        } else {
+          const localP = localStorage.getItem('moje_posilki_dzis');
+          if (localP) setPosilki(JSON.parse(localP));
+        }
+
+      } catch (err) {
+        console.error("Błąd pobierania danych z Supabase:", err);
+      } finally {
+        setLadowanie(false);
+      }
     }
 
-    const zapisanePosilki = localStorage.getItem('moje_posilki_dzis');
-    if (zapisanePosilki) {
-      const parsedPosilki = JSON.parse(zapisanePosilki);
-      const zmigrowaneP = parsedPosilki.map((p: any) => (p.data && p.data.includes('-')) ? p : { ...p, data: getDzis() });
-      setPosilki(zmigrowaneP);
-    }
-
-    setLadowanie(false);
+    wczytajDaneZChmury();
   }, [router]);
 
   useEffect(() => {
@@ -83,7 +124,7 @@ export default function PulpitGłówny() {
   if (ladowanie) {
     return (
       <div className="min-h-screen bg-zinc-950 flex items-center justify-center text-emerald-400">
-        <p className="font-bold">Sprawdzanie profilu...</p>
+        <p className="font-bold animate-pulse">Łączenie z bazą danych...</p>
       </div>
     );
   }
@@ -122,7 +163,6 @@ export default function PulpitGłówny() {
     return `${prevS.ciezar || 0} x ${prevS.powtorzenia || 0}`;
   };
 
-  // ULEPSZONE ROZPOZNAWANIE I AUTO-UZUPEŁNIANIE
   const wybierzCwiczenieIZainicjalizuj = (cw: any, aktualnyDzien: any) => {
     setWybraneCwiczenie(cw.nazwa);
     
@@ -131,7 +171,6 @@ export default function PulpitGłówny() {
     const dzienTypLower = (aktualnyDzien?.typ || '').toLowerCase();
     const dzienTytulLower = (aktualnyDzien?.tytul || '').toLowerCase();
 
-    // 1. Rozpoznanie typu ćwiczenia
     let wykrytyTyp: 'silowe' | 'plywanie' | 'cardio' | 'status' = 'silowe';
 
     const czyBasen = 
@@ -143,12 +182,12 @@ export default function PulpitGłówny() {
       nazwaLower.includes('kraul') || 
       nazwaLower.includes('grzbiet') || 
       nazwaLower.includes('żabk') || 
-      nazwaLower.includes('delfin') ||
-      nazwaLower.includes('styl') ||
+      nazwaLower.includes('delfin') || 
+      nazwaLower.includes('styl') || 
       nazwaLower.includes('deska') || 
-      nazwaLower.includes('deską') ||
-      nazwaLower.includes('płetw') ||
-      nazwaLower.includes('rozpływ') ||
+      nazwaLower.includes('deską') || 
+      nazwaLower.includes('płetw') || 
+      nazwaLower.includes('rozpływ') || 
       nazwaLower.includes('basen');
 
     const czyCardio = 
@@ -157,40 +196,29 @@ export default function PulpitGłówny() {
       nazwaLower.includes('bieżn') || 
       nazwaLower.includes('rower') || 
       nazwaLower.includes('cardio') || 
-      nazwaLower.includes('orbitrek') ||
+      nazwaLower.includes('orbitrek') || 
       nazwaLower.includes('skakank');
 
     const czyStatus = 
       nazwaLower.includes('rozciąg') || 
       nazwaLower.includes('mobilno') || 
       nazwaLower.includes('spacer') || 
-      nazwaLower.includes('plank') ||
+      nazwaLower.includes('plank') || 
       nazwaLower.includes('sauna');
 
-    if (czyBasen) {
-      wykrytyTyp = 'plywanie';
-    } else if (czyCardio) {
-      wykrytyTyp = 'cardio';
-    } else if (czyStatus) {
-      wykrytyTyp = 'status';
-    }
+    if (czyBasen) wykrytyTyp = 'plywanie';
+    else if (czyCardio) wykrytyTyp = 'cardio';
+    else if (czyStatus) wykrytyTyp = 'status';
 
     setTypCwiczenia(wykrytyTyp);
 
-    // 2. Wyciąganie liczby serii oraz powtórzeń/dystansu
     let iloscSerii = 1;
     let autoReps = '';
     let autoDystans = '';
 
-    // Bezpośrednio z pól obiektu jeśli istnieją
-    if (cw.serie && !isNaN(Number(cw.serie))) {
-      iloscSerii = Number(cw.serie);
-    }
-    if (cw.powtorzenia) {
-      autoReps = cw.powtorzenia.toString();
-    }
+    if (cw.serie && !isNaN(Number(cw.serie))) iloscSerii = Number(cw.serie);
+    if (cw.powtorzenia) autoReps = cw.powtorzenia.toString();
 
-    // Parsowanie ciągu znaków (np. "3x12", "3 x 15", "1x100m", "4x50m", "3x8-10")
     const matchNxM = opisSerii.match(/(\d+)\s*[xX×*]\s*([0-9a-zA-Z\-]+)/);
     if (matchNxM) {
       iloscSerii = parseInt(matchNxM[1]) || iloscSerii;
@@ -202,12 +230,9 @@ export default function PulpitGłówny() {
       }
     } else {
       const matchDystansSolo = opisSerii.match(/(\d+)\s*m/);
-      if (matchDystansSolo) {
-        autoDystans = `${matchDystansSolo[1]}m`;
-      }
+      if (matchDystansSolo) autoDystans = `${matchDystansSolo[1]}m`;
     }
 
-    // Bezpieczny limit serii (1 do 10)
     const finalnaIloscSerii = Math.max(1, Math.min(iloscSerii, 10));
 
     const noweSerie = Array.from({ length: finalnaIloscSerii }, (_, i) => ({
@@ -249,7 +274,8 @@ export default function PulpitGłówny() {
     setSerie(zaktualizowane);
   };
 
-  const zapiszWynikTreningu = (e: React.FormEvent) => {
+  // ZAPIS TRENINGU DO SUPABASE
+  const zapiszWynikTreningu = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!wybraneCwiczenie) return;
     
@@ -272,6 +298,7 @@ export default function PulpitGłówny() {
 
     const nowyWynik = {
       id: Date.now(),
+      user_id: 'domyslny_uzytkownik',
       cwiczenie: wybraneCwiczenie,
       typ: typCwiczenia,
       serie: ukoczoneSerie,
@@ -282,13 +309,20 @@ export default function PulpitGłówny() {
     const zaktualizowane = [...treningiZapis, nowyWynik];
     setTreningiZapis(zaktualizowane);
     localStorage.setItem('moje_treningi_dzis', JSON.stringify(zaktualizowane));
+
+    // Zapis do Supabase
+    await supabase.from('treningi').insert([nowyWynik]);
+
     setWybraneCwiczenie('');
   };
 
-  const usunWynik = (id: number) => {
+  // USUWANIE TRENINGU Z SUPABASE
+  const usunWynik = async (id: number) => {
     const zaktualizowane = treningiZapis.filter(t => t.id !== id);
     setTreningiZapis(zaktualizowane);
     localStorage.setItem('moje_treningi_dzis', JSON.stringify(zaktualizowane));
+
+    await supabase.from('treningi').delete().eq('id', id);
   };
 
   const obliczMakroAI = async () => {
@@ -303,16 +337,11 @@ export default function PulpitGłówny() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
-          posilek: nazwaPosilku,
+          posilek: nazwaPosilku, 
           waga: wagaPosilku 
         })
       });
       
-      const contentType = res.headers.get("content-type");
-      if (!contentType || !contentType.includes("application/json")) {
-        throw new Error("Plik API dla kalkulatora znajduje się w złym folderze lub nazywa się page.tsx zamiast route.ts!");
-      }
-
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Błąd obliczeń AI");
 
@@ -332,7 +361,8 @@ export default function PulpitGłówny() {
     }
   };
 
-  const dodajPosilek = (e: React.FormEvent) => {
+  // ZAPIS POSIŁKU DO SUPABASE
+  const dodajPosilek = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!nazwaPosilku || !kalorie) return;
     
@@ -343,6 +373,7 @@ export default function PulpitGłówny() {
 
     const nowy = {
       id: Date.now(),
+      user_id: 'domyslny_uzytkownik',
       nazwa: finalnaNazwa,
       kalorie: Number(kalorie) || 0,
       bialko: Number(bialko) || 0,
@@ -350,17 +381,24 @@ export default function PulpitGłówny() {
       tluszcze: Number(tluszcze) || 0,
       data: wybranaData,
     };
+
     const zaktualizowane = [...posilki, nowy];
     setPosilki(zaktualizowane);
     localStorage.setItem('moje_posilki_dzis', JSON.stringify(zaktualizowane));
     
+    // Zapis do Supabase
+    await supabase.from('posilki').insert([nowy]);
+
     setNazwaPosilku(''); setWagaPosilku(''); setKalorie(''); setBialko(''); setWeglowodany(''); setTluszcze('');
   };
 
-  const usunPosilek = (id: number) => {
+  // USUWANIE POSIŁKU Z SUPABASE
+  const usunPosilek = async (id: number) => {
     const zaktualizowane = posilki.filter(p => p.id !== id);
     setPosilki(zaktualizowane);
     localStorage.setItem('moje_posilki_dzis', JSON.stringify(zaktualizowane));
+
+    await supabase.from('posilki').delete().eq('id', id);
   };
 
   const dniTreningowe = plan?.treningiTygodnia || [];
@@ -377,7 +415,6 @@ export default function PulpitGłówny() {
   const celTluszcze = plan?.makroskladniki?.tluszczeGramy || 70;
   
   const zostaloKcal = celKcal - sumaKcal;
-  
 
   return (
     <div className="max-w-2xl mx-auto p-6 text-white min-h-screen bg-zinc-950 space-y-6 pb-16">
@@ -385,7 +422,7 @@ export default function PulpitGłówny() {
       <div className="flex justify-between items-center bg-zinc-900 border border-zinc-800 p-5 rounded-2xl shadow-xl flex-wrap gap-3">
         <div>
           <h1 className="text-xl font-bold text-emerald-400">Twój Pulpit</h1>
-          <p className="text-xs text-zinc-400">Trening i dieta</p>
+          <p className="text-xs text-zinc-400">Zsynchronizowano z bazą w chmurze ☁️</p>
         </div>
         <div className="flex gap-2 flex-wrap justify-end">
           <Link href="/pomiary" className="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold px-3 py-2 rounded-xl transition shadow">
@@ -585,7 +622,7 @@ export default function PulpitGłówny() {
                             </>
                           )}
 
-                          {/* CARDIO / ERGOMETR */}
+                          {/* CARDIO */}
                           {typCwiczenia === 'cardio' && (
                             <>
                               <div className="col-span-3">
@@ -605,7 +642,7 @@ export default function PulpitGłówny() {
                             </>
                           )}
 
-                          {/* ROZCIĄGANIE */}
+                          {/* STATUS */}
                           {typCwiczenia === 'status' && (
                             <div className="col-span-6 text-center text-xs text-zinc-400">
                               Odhacz wykonanie

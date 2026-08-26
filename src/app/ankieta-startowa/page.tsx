@@ -3,6 +3,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { supabase } from '@/app/lib/supabase';
 import { 
   ProfilUzytkownikaRozszerzony, 
   CelGlowny, 
@@ -215,6 +216,14 @@ export default function AnkietaStartowa() {
 
       localStorage.setItem('wygenerowany_plan_ai', JSON.stringify(json));
       localStorage.removeItem('autosave_ankieta');
+
+      // ZAPIS PLANU DO CHMURY SUPABASE
+      await supabase.from('plany').upsert({
+        id: 'domyslny_uzytkownik',
+        dane_planu: json,
+        zaktualizowano_at: new Date().toISOString()
+      });
+
       router.push('/');
       
     } catch (err: any) {
@@ -335,7 +344,6 @@ export default function AnkietaStartowa() {
           </div>
         )}
 
-        {/* KROK 2 */}
         {krok === 2 && (
           <div className="space-y-4">
             <h1 className="text-xl font-bold">Pomiary ciała (cm)</h1>
@@ -385,7 +393,6 @@ export default function AnkietaStartowa() {
           </div>
         )}
 
-        {/* KROK 3 */}
         {krok === 3 && (
           <div className="space-y-4">
             <h1 className="text-xl font-bold">Zdrowie i Basen</h1>
@@ -445,7 +452,6 @@ export default function AnkietaStartowa() {
           </div>
         )}
 
-        {/* KROK 4 */}
         {krok === 4 && (
           <div className="space-y-4">
             <h1 className="text-xl font-bold">Dostępny inwentarz</h1>
@@ -481,7 +487,6 @@ export default function AnkietaStartowa() {
           </div>
         )}
 
-        {/* KROK 5 */}
         {krok === 5 && (
           <div className="space-y-4">
             <h1 className="text-xl font-bold flex items-center gap-2">
@@ -493,7 +498,6 @@ export default function AnkietaStartowa() {
 
             <div className="space-y-2.5">
               {DNI_TYGODNIA.map(dzien => {
-                // Bezpieczne sprawdzanie (fallback) na wypadek braku tablicy harmonogramu
                 const bezpiecznyHarmonogram = dane.harmonogram || [];
                 const aktualnyRodzaj = bezpiecznyHarmonogram.find(d => d.dzienTygodnia === dzien)?.rodzajTreningu || 'Wolne';
 
