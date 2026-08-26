@@ -5,11 +5,14 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/app/lib/supabase';
+import { getActiveUserId } from '@/app/lib/user';
+import ProfilSwitcher from '@/app/components/ProfilSwitcher';
 
 export default function PulpitGłówny() {
   const router = useRouter();
   const [plan, setPlan] = useState<any>(null);
   const [ladowanie, setLadowanie] = useState(true);
+  const [aktywnyUzytkownik, setAktywnyUzytkownik] = useState<string>('Tata');
   
   // --- SYSTEM DAT ---
   const getDzis = () => new Date().toISOString().split('T')[0];
@@ -46,22 +49,25 @@ export default function PulpitGłówny() {
   useEffect(() => {
     async function wczytajDaneZChmury() {
       try {
-        // 1. Pobieranie planu z Supabase
+        const userId = getActiveUserId();
+        setAktywnyUzytkownik(userId);
+
+        // 1. Pobieranie planu z Supabase dla wybranego profilu
         const { data: planData } = await supabase
           .from('plany')
           .select('dane_planu')
-          .eq('id', 'domyslny_uzytkownik')
+          .eq('id', userId)
           .single();
 
         let aktualnyPlan = planData?.dane_planu;
 
         // Fallback do localStorage jeśli w bazie jeszcze nie ma
         if (!aktualnyPlan) {
-          const zapisanyLocal = localStorage.getItem('wygenerowany_plan_ai');
+          const zapisanyLocal = localStorage.getItem(`wygenerowany_plan_ai_${userId}`) || localStorage.getItem('wygenerowany_plan_ai');
           if (zapisanyLocal) {
             aktualnyPlan = JSON.parse(zapisanyLocal);
             // Wyślij do Supabase w tle
-            supabase.from('plany').upsert({ id: 'domyslny_uzytkownik', dane_planu: aktualnyPlan });
+            supabase.from('plany').upsert({ id: userId, dane_planu: aktualnyPlan });
           }
         }
 
@@ -72,29 +78,31 @@ export default function PulpitGłówny() {
 
         setPlan(aktualnyPlan);
 
-        // 2. Pobieranie treningów z Supabase
+        // 2. Pobieranie treningów z Supabase dla wybranego profilu
         const { data: treningiData } = await supabase
           .from('treningi')
           .select('*')
+          .eq('user_id', userId)
           .order('utworzono_at', { ascending: true });
 
         if (treningiData && treningiData.length > 0) {
           setTreningiZapis(treningiData);
         } else {
-          const localT = localStorage.getItem('moje_treningi_dzis');
+          const localT = localStorage.getItem(`moje_treningi_${userId}`) || localStorage.getItem('moje_treningi_dzis');
           if (localT) setTreningiZapis(JSON.parse(localT));
         }
 
-        // 3. Pobieranie posiłków z Supabase
+        // 3. Pobieranie posiłków z Supabase dla wybranego profilu
         const { data: posilkiData } = await supabase
           .from('posilki')
           .select('*')
+          .eq('user_id', userId)
           .order('utworzono_at', { ascending: true });
 
         if (posilkiData && posilkiData.length > 0) {
           setPosilki(posilkiData);
         } else {
-          const localP = localStorage.getItem('moje_posilki_dzis');
+          const localP = localStorage.getItem(`moje_posilki_${userId}`) || localStorage.getItem('moje_posilki_dzis');
           if (localP) setPosilki(JSON.parse(localP));
         }
 
@@ -177,7 +185,7 @@ export default function PulpitGłówny() {
       dzienTypLower.includes('basen') || 
       dzienTypLower.includes('pływ') || 
       dzienTytulLower.includes('basen') || 
-      dzienTytulLower.includes('pływ') ||
+      dzienTytulLower.includes('pływ') || 
       nazwaLower.includes('pływ') || 
       nazwaLower.includes('kraul') || 
       nazwaLower.includes('grzbiet') || 
@@ -296,9 +304,11 @@ export default function PulpitGłówny() {
       podsumowanieStr = ukoczoneSerie.map(s => `S${s.set}: ${s.ciezar || 0}kg×${s.powtorzenia || 0}`).join(' | ');
     }
 
+    const userId = getActiveUserId();
+
     const nowyWynik = {
       id: Date.now(),
-      user_id: 'domyslny_uzytkownik',
+      user_id: userId,
       cwiczenie: wybraneCwiczenie,
       typ: typCwiczenia,
       serie: ukoczoneSerie,
@@ -308,7 +318,7 @@ export default function PulpitGłówny() {
 
     const zaktualizowane = [...treningiZapis, nowyWynik];
     setTreningiZapis(zaktualizowane);
-    localStorage.setItem('moje_treningi_dzis', JSON.stringify(zaktualizowane));
+    localStorage.setItem(`moje_treningi_${userId}`, JSON.stringify(zaktualizowane));
 
     // Zapis do Supabase
     await supabase.from('treningi').insert([nowyWynik]);
@@ -318,9 +328,10 @@ export default function PulpitGłówny() {
 
   // USUWANIE TRENINGU Z SUPABASE
   const usunWynik = async (id: number) => {
+    const userId = getActiveUserId();
     const zaktualizowane = treningiZapis.filter(t => t.id !== id);
     setTreningiZapis(zaktualizowane);
-    localStorage.setItem('moje_treningi_dzis', JSON.stringify(zaktualizowane));
+    localStorage.setItem(`moje_treningi_${userId}`, JSON.stringify(zaktualizowane));
 
     await supabase.from('treningi').delete().eq('id', id);
   };
@@ -371,9 +382,11 @@ export default function PulpitGłówny() {
       finalnaNazwa = `${finalnaNazwa} (${wagaPosilku}g)`;
     }
 
+    const userId = getActiveUserId();
+
     const nowy = {
       id: Date.now(),
-      user_id: 'domyslny_uzytkownik',
+      user_id: userId,
       nazwa: finalnaNazwa,
       kalorie: Number(kalorie) || 0,
       bialko: Number(bialko) || 0,
@@ -384,7 +397,7 @@ export default function PulpitGłówny() {
 
     const zaktualizowane = [...posilki, nowy];
     setPosilki(zaktualizowane);
-    localStorage.setItem('moje_posilki_dzis', JSON.stringify(zaktualizowane));
+    localStorage.setItem(`moje_posilki_${userId}`, JSON.stringify(zaktualizowane));
     
     // Zapis do Supabase
     await supabase.from('posilki').insert([nowy]);
@@ -394,9 +407,10 @@ export default function PulpitGłówny() {
 
   // USUWANIE POSIŁKU Z SUPABASE
   const usunPosilek = async (id: number) => {
+    const userId = getActiveUserId();
     const zaktualizowane = posilki.filter(p => p.id !== id);
     setPosilki(zaktualizowane);
-    localStorage.setItem('moje_posilki_dzis', JSON.stringify(zaktualizowane));
+    localStorage.setItem(`moje_posilki_${userId}`, JSON.stringify(zaktualizowane));
 
     await supabase.from('posilki').delete().eq('id', id);
   };
@@ -418,11 +432,14 @@ export default function PulpitGłówny() {
 
   return (
     <div className="max-w-2xl mx-auto p-6 text-white min-h-screen bg-zinc-950 space-y-6 pb-16">
+      {/* PRZEŁĄCZNIK PROFILI */}
+      <ProfilSwitcher />
+
       {/* NAGŁÓWEK */}
       <div className="flex justify-between items-center bg-zinc-900 border border-zinc-800 p-5 rounded-2xl shadow-xl flex-wrap gap-3">
         <div>
           <h1 className="text-xl font-bold text-emerald-400">Twój Pulpit</h1>
-          <p className="text-xs text-zinc-400">Zsynchronizowano z bazą w chmurze ☁️</p>
+          <p className="text-xs text-zinc-400">Profil: <span className="text-emerald-400 font-semibold">{aktywnyUzytkownik}</span> ☁️</p>
         </div>
         <div className="flex gap-2 flex-wrap justify-end">
           <Link href="/pomiary" className="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold px-3 py-2 rounded-xl transition shadow">

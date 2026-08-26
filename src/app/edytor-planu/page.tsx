@@ -1,11 +1,17 @@
 // src/app/edytor-planu/page.tsx
 "use client";
 
+export const dynamic = 'force-dynamic';
+
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { supabase } from '@/app/lib/supabase';
+import { getActiveUserId } from '@/app/lib/user';
+import ProfilSwitcher from '@/app/components/ProfilSwitcher';
 
 export default function EdytorPlanuPage() {
   const [plan, setPlan] = useState<any>(null);
+  const [ladowanie, setLadowanie] = useState(true);
   
   // Stany do dodawania nowego dnia
   const [nowyDzienTytul, setNowyDzienTytul] = useState('');
@@ -23,20 +29,59 @@ export default function EdytorPlanuPage() {
   const [ladujeAi, setLadujeAi] = useState(false);
 
   useEffect(() => {
-    const zapisanyPlan = localStorage.getItem('wygenerowany_plan_ai');
-    if (zapisanyPlan) {
-      setPlan(JSON.parse(zapisanyPlan));
-    } else {
-      setPlan({
-        makroskladniki: { kalorieKcal: 2250, bialkoGramy: 170, weglowodanyGramy: 240, tluszczeGramy: 70 },
-        treningiTygodnia: []
-      });
+    async function wczytajPlan() {
+      try {
+        const userId = getActiveUserId();
+        
+        // 1. Próba pobrania planu z Supabase dla danego profilu
+        const { data: dbData } = await supabase
+          .from('plany')
+          .select('dane_planu')
+          .eq('id', userId)
+          .single();
+
+        if (dbData?.dane_planu) {
+          setPlan(dbData.dane_planu);
+        } else {
+          // 2. Fallback do pamięci lokalnej
+          const local = localStorage.getItem(`wygenerowany_plan_ai_${userId}`) || localStorage.getItem('wygenerowany_plan_ai');
+          if (local) {
+            setPlan(JSON.parse(local));
+          } else {
+            setPlan({
+              makroskladniki: { kalorieKcal: 2250, bialkoGramy: 170, weglowodanyGramy: 240, tluszczeGramy: 70 },
+              treningiTygodnia: []
+            });
+          }
+        }
+      } catch (e) {
+        console.error("Błąd podczas ładowania planu:", e);
+      } finally {
+        setLadowanie(false);
+      }
     }
+
+    wczytajPlan();
   }, []);
 
-  const zapiszZmiany = (zaktualizowanyPlan: any) => {
+  const zapiszZmiany = async (zaktualizowanyPlan: any) => {
     setPlan(zaktualizowanyPlan);
+    const userId = getActiveUserId();
+    
+    // Zapis w pamięci lokalnej
+    localStorage.setItem(`wygenerowany_plan_ai_${userId}`, JSON.stringify(zaktualizowanyPlan));
     localStorage.setItem('wygenerowany_plan_ai', JSON.stringify(zaktualizowanyPlan));
+
+    // Zapis w chmurze Supabase
+    try {
+      await supabase.from('plany').upsert({
+        id: userId,
+        dane_planu: zaktualizowanyPlan,
+        zaktualizowano_at: new Date().toISOString()
+      });
+    } catch (err) {
+      console.error("Błąd zapisu planu w Supabase:", err);
+    }
   };
 
   const dodajDzien = (e: React.FormEvent) => {
@@ -114,9 +159,6 @@ export default function EdytorPlanuPage() {
     }
   };
 
-  // ------------------------------------------------------------------
-  // IDEALNA KOPIA TEGO CO DZIAŁA W ANKIECIE (route.ts)
-  // ------------------------------------------------------------------
   const generujDzienAIBezposrednio = async () => {
     const aktualny = plan.treningiTygodnia[wybranyIdx];
     if (!aktualny) return;
@@ -137,8 +179,7 @@ Zwróć WYŁĄCZNIE poprawną tablicę JSON w formacie obiektów:
 ]
 `;
 
-      // Kopia działającego linku z ankiety
-      const url = 'https://generativelanguage.googleapis.com/v1/models/gemini-3.6-flash:generateContent?key=' + apiKey;
+      const url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=' + apiKey;
 
       const response = await fetch(url, {
         method: 'POST',
@@ -162,7 +203,6 @@ Zwróć WYŁĄCZNIE poprawną tablicę JSON w formacie obiektów:
         throw new Error(data.error?.message || "Błąd komunikacji z API Google.");
       }
 
-      // Format wymuszony jako application/json, więc możemy bezpiecznie parsować
       const jsonString = data.candidates[0].content.parts[0].text;
       const wygenerowaneCwiczenia = JSON.parse(jsonString);
 
@@ -178,12 +218,21 @@ Zwróć WYŁĄCZNIE poprawną tablicę JSON w formacie obiektów:
     }
   };
 
-  if (!plan) return <div className="p-6 text-white bg-zinc-950 min-h-screen">Ładowanie edytora...</div>;
+  if (ladowanie || !plan) {
+    return (
+      <div className="min-h-screen bg-zinc-950 flex items-center justify-center text-emerald-400">
+        <p className="font-bold animate-pulse">Ładowanie edytora...</p>
+      </div>
+    );
+  }
 
   const aktualnyDzien = plan.treningiTygodnia[wybranyIdx];
 
   return (
     <div className="max-w-2xl mx-auto p-6 text-white min-h-screen bg-zinc-950 space-y-6 pb-16">
+      {/* PRZEŁĄCZNIK PROFILI */}
+      <ProfilSwitcher />
+
       {/* NAGŁÓWEK */}
       <div className="flex justify-between items-center bg-zinc-900 border border-zinc-800 p-5 rounded-2xl shadow-xl">
         <div>

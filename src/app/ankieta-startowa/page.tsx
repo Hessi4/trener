@@ -6,6 +6,7 @@ export const dynamic = 'force-dynamic';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/app/lib/supabase';
+import { getActiveUserId } from '@/app/lib/user';
 import { 
   ProfilUzytkownikaRozszerzony, 
   CelGlowny, 
@@ -138,7 +139,8 @@ export default function AnkietaStartowa() {
 
   useEffect(() => {
     setZamontowano(true);
-    const zapisaneAutosave = localStorage.getItem('autosave_ankieta');
+    const userId = getActiveUserId();
+    const zapisaneAutosave = localStorage.getItem(`autosave_ankieta_${userId}`) || localStorage.getItem('autosave_ankieta');
     if (zapisaneAutosave) {
       try {
         const pobraneDane = JSON.parse(zapisaneAutosave);
@@ -159,6 +161,8 @@ export default function AnkietaStartowa() {
 
   useEffect(() => {
     if (zamontowano) {
+      const userId = getActiveUserId();
+      localStorage.setItem(`autosave_ankieta_${userId}`, JSON.stringify(dane));
       localStorage.setItem('autosave_ankieta', JSON.stringify(dane));
     }
   }, [dane, zamontowano]);
@@ -172,7 +176,6 @@ export default function AnkietaStartowa() {
   };
 
   const ustawDzienHarmonogramu = (dzienTygodnia: string, rodzajTreningu: 'Siłownia' | 'Basen' | 'Cardio' | 'Wolne') => {
-    // Bezpieczny fallback na wypadek starych zapisów
     const bezpiecznyHarmonogram = dane.harmonogram || DNI_TYGODNIA.map(d => ({ dzienTygodnia: d, rodzajTreningu: 'Wolne' }));
     
     const noweDni = bezpiecznyHarmonogram.map(d => 
@@ -184,6 +187,8 @@ export default function AnkietaStartowa() {
   const zakonczAnkiete = async () => {
     setLadowanie(true);
     try {
+      const userId = getActiveUserId();
+      localStorage.setItem(`profil_uzytkownika_${userId}`, JSON.stringify(dane));
       localStorage.setItem('profil_uzytkownika', JSON.stringify(dane));
 
       const dzisiejszaData = new Date().toISOString().split('T')[0];
@@ -198,10 +203,11 @@ export default function AnkietaStartowa() {
         { id: Date.now() + 8, kategoria: 'Łydka', wartosc: dane.pomiary.lydkaCm || 0, data: dzisiejszaData }
       ].filter(p => p.wartosc > 0);
 
-      const istniejacePomiary = JSON.parse(localStorage.getItem('historia_pomiarow_szczegolowa') || '[]');
+      const istniejacePomiary = JSON.parse(localStorage.getItem(`historia_pomiarow_szczegolowa_${userId}`) || localStorage.getItem('historia_pomiarow_szczegolowa') || '[]');
       const bezWypelniaczy = istniejacePomiary.filter((p: any) => p.data !== '2026-05-01' && p.data !== '2026-06-01' && p.data !== '2026-07-01');
       const zaktualizowanePomiary = [...bezWypelniaczy, ...zmapowanePomiary];
       
+      localStorage.setItem(`historia_pomiarow_szczegolowa_${userId}`, JSON.stringify(zaktualizowanePomiary));
       localStorage.setItem('historia_pomiarow_szczegolowa', JSON.stringify(zaktualizowanePomiary));
 
       const res = await fetch('/api/asystent', {
@@ -216,12 +222,14 @@ export default function AnkietaStartowa() {
         throw new Error(json.error || 'Nieznany błąd serwera');
       }
 
+      localStorage.setItem(`wygenerowany_plan_ai_${userId}`, JSON.stringify(json));
       localStorage.setItem('wygenerowany_plan_ai', JSON.stringify(json));
+      localStorage.removeItem(`autosave_ankieta_${userId}`);
       localStorage.removeItem('autosave_ankieta');
 
-      // ZAPIS PLANU DO CHMURY SUPABASE
+      // ZAPIS PLANU DO CHMURY SUPABASE DLA KONKRETNEGO PROFILU
       await supabase.from('plany').upsert({
-        id: 'domyslny_uzytkownik',
+        id: userId,
         dane_planu: json,
         zaktualizowano_at: new Date().toISOString()
       });
@@ -264,12 +272,14 @@ export default function AnkietaStartowa() {
               <label className="text-xs text-slate-400 block mb-2 font-medium">Płeć (wpływa na BMR):</label>
               <div className="grid grid-cols-2 gap-2">
                 <button
+                  type="button"
                   onClick={() => setDane({...dane, plec: 'mezczyzna'})}
                   className={`py-2 rounded-xl text-sm font-medium border transition-all ${dane.plec === 'mezczyzna' ? 'bg-emerald-500/20 border-emerald-500 text-emerald-400' : 'bg-slate-800 border-slate-700 text-slate-400'}`}
                 >
                   Mężczyzna
                 </button>
                 <button
+                  type="button"
                   onClick={() => setDane({...dane, plec: 'kobieta'})}
                   className={`py-2 rounded-xl text-sm font-medium border transition-all ${dane.plec === 'kobieta' ? 'bg-emerald-500/20 border-emerald-500 text-emerald-400' : 'bg-slate-800 border-slate-700 text-slate-400'}`}
                 >
@@ -288,6 +298,7 @@ export default function AnkietaStartowa() {
               ] as const).map(akt => (
                 <button
                   key={akt.id}
+                  type="button"
                   onClick={() => setDane({...dane, poziomAktywnosci: akt.id})}
                   className={`w-full text-left p-2.5 rounded-xl border flex justify-between items-center transition-all ${dane.poziomAktywnosci === akt.id ? 'bg-indigo-500/20 border-indigo-500 text-indigo-300' : 'bg-slate-800/40 border-slate-700 text-slate-400'}`}
                 >
@@ -308,6 +319,7 @@ export default function AnkietaStartowa() {
                 return (
                   <button
                     key={c.id}
+                    type="button"
                     onClick={() => setDane({ ...dane, celGlowny: c.id })}
                     className={`w-full text-left p-3.5 rounded-2xl border transition-all flex items-start gap-3 ${
                       wybrany ? 'bg-emerald-500/10 border-emerald-500 ring-1 ring-emerald-500/50' : 'bg-slate-900 border-slate-800'
@@ -419,7 +431,12 @@ export default function AnkietaStartowa() {
                 <label className="text-[11px] text-slate-400 mb-1.5 block">Poziom zaawansowania:</label>
                 <div className="grid grid-cols-2 gap-1.5">
                   {(['poczatkujacy', 'sredniozaawansowany', 'zaawansowany', 'zawodnik_masters'] as PoziomPlywania[]).map((p) => (
-                    <button key={p} onClick={() => setDane({ ...dane, basen: { ...dane.basen, poziom: p } })} className={`p-2 rounded-xl border text-[11px] transition-all ${dane.basen.poziom === p ? 'bg-cyan-500/20 border-cyan-500 text-cyan-300' : 'bg-slate-800/40 border-slate-700 text-slate-400'}`}>
+                    <button 
+                      key={p} 
+                      type="button"
+                      onClick={() => setDane({ ...dane, basen: { ...dane.basen, poziom: p } })} 
+                      className={`p-2 rounded-xl border text-[11px] transition-all ${dane.basen.poziom === p ? 'bg-cyan-500/20 border-cyan-500 text-cyan-300' : 'bg-slate-800/40 border-slate-700 text-slate-400'}`}
+                    >
                       {p === 'poczatkujacy' && 'Początkujący'}
                       {p === 'sredniozaawansowany' && 'Średni'}
                       {p === 'zaawansowany' && 'Zaawansowany'}
@@ -433,7 +450,12 @@ export default function AnkietaStartowa() {
                 <label className="text-[11px] text-slate-400 mb-1.5 block">Opanowane style:</label>
                 <div className="grid grid-cols-2 gap-1.5">
                   {STYLE_BASEN.map((styl) => (
-                    <button key={styl.id} onClick={() => setDane({ ...dane, basen: { ...dane.basen, znaneStyle: przelaczElement(dane.basen.znaneStyle, styl.id) } })} className={`p-2 rounded-xl border text-[11px] transition-all ${dane.basen.znaneStyle.includes(styl.id) ? 'bg-cyan-500/20 border-cyan-500 text-cyan-300' : 'bg-slate-800/40 border-slate-700 text-slate-400'}`}>
+                    <button 
+                      key={styl.id} 
+                      type="button"
+                      onClick={() => setDane({ ...dane, basen: { ...dane.basen, znaneStyle: przelaczElement(dane.basen.znaneStyle, styl.id) } })} 
+                      className={`p-2 rounded-xl border text-[11px] transition-all ${dane.basen.znaneStyle.includes(styl.id) ? 'bg-cyan-500/20 border-cyan-500 text-cyan-300' : 'bg-slate-800/40 border-slate-700 text-slate-400'}`}
+                    >
                       {styl.nazwa} {dane.basen.znaneStyle.includes(styl.id) && '✓'}
                     </button>
                   ))}
@@ -464,7 +486,11 @@ export default function AnkietaStartowa() {
                 {SPRZET_SILOWNIA.map((sprzet) => {
                   const zaznaczony = dane.sprzet.includes(sprzet.id);
                   return (
-                    <button key={sprzet.id} onClick={() => setDane({ ...dane, sprzet: przelaczElement(dane.sprzet, sprzet.id) })} className={`w-full flex justify-between p-2.5 rounded-xl border text-xs transition-all ${zaznaczony ? 'bg-amber-500/20 border-amber-500 text-amber-300' : 'bg-slate-800/40 border-slate-700 text-slate-400'}`}>
+                    <button 
+                      key={sprzet.id} 
+                      type="button"
+                      onClick={() => setDane({ ...dane, sprzet: przelaczElement(dane.sprzet, sprzet.id) })} 
+                      className={`w-full flex justify-between p-2.5 rounded-xl border text-xs transition-all ${zaznaczony ? 'bg-amber-500/20 border-amber-500 text-amber-300' : 'bg-slate-800/40 border-slate-700 text-slate-400'}`}>
                       <div className="text-left">
                         <span className="font-medium block">{sprzet.nazwa}</span>
                         <span className="text-[10px] text-slate-500">{sprzet.kat}</span>
@@ -510,6 +536,7 @@ export default function AnkietaStartowa() {
                       {(['Siłownia', 'Basen', 'Cardio', 'Wolne'] as const).map(rodzaj => (
                         <button
                           key={rodzaj}
+                          type="button"
                           onClick={() => ustawDzienHarmonogramu(dzien, rodzaj)}
                           className={`py-1.5 text-[10px] font-medium rounded-lg border transition-all ${
                             aktualnyRodzaj === rodzaj 

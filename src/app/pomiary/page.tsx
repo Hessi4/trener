@@ -1,11 +1,17 @@
 // src/app/pomiary/page.tsx
 "use client";
 
+export const dynamic = 'force-dynamic';
+
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { supabase } from '@/app/lib/supabase';
+import { getActiveUserId } from '@/app/lib/user';
+import ProfilSwitcher from '@/app/components/ProfilSwitcher';
 
 export default function PomiaryPage() {
   const [pomiary, setPomiary] = useState<any[]>([]);
+  const [ladowanie, setLadowanie] = useState(true);
   const [kategoria, setKategoria] = useState('Masa ciała');
   const [wartosc, setWartosc] = useState('');
   const [dataPomiaru, setDataPomiaru] = useState(new Date().toISOString().split('T')[0]);
@@ -16,27 +22,52 @@ export default function PomiaryPage() {
   ];
 
   useEffect(() => {
-    const zapisane = localStorage.getItem('historia_pomiarow_szczegolowa');
-    if (zapisane) {
-      setPomiary(JSON.parse(zapisane));
-    } else {
-      // Przykładowe dane startowe, żeby wykres od razu ładnie wyglądał
-      const domyslne = [
-        { id: 1, kategoria: 'Masa ciała', wartosc: 85, data: '2026-05-01' },
-        { id: 2, kategoria: 'Masa ciała', wartosc: 84.2, data: '2026-06-01' },
-        { id: 3, kategoria: 'Masa ciała', wartosc: 83.0, data: '2026-07-01' },
-      ];
-      setPomiary(domyslne);
-      localStorage.setItem('historia_pomiarow_szczegolowa', JSON.stringify(domyslne));
+    async function wczytajPomiary() {
+      try {
+        const userId = getActiveUserId();
+        
+        // 1. Pobieranie pomiarów z Supabase dla danego profilu
+        const { data: dbData } = await supabase
+          .from('pomiary')
+          .select('*')
+          .eq('user_id', userId)
+          .order('data', { ascending: false });
+
+        if (dbData && dbData.length > 0) {
+          setPomiary(dbData);
+        } else {
+          // 2. Fallback do pamięci lokalnej
+          const local = localStorage.getItem(`historia_pomiarow_szczegolowa_${userId}`) || localStorage.getItem('historia_pomiarow_szczegolowa');
+          if (local) {
+            setPomiary(JSON.parse(local));
+          } else {
+            const domyslne = [
+              { id: 1, user_id: userId, kategoria: 'Masa ciała', wartosc: 85, data: '2026-05-01' },
+              { id: 2, user_id: userId, kategoria: 'Masa ciała', wartosc: 84.2, data: '2026-06-01' },
+              { id: 3, user_id: userId, kategoria: 'Masa ciała', wartosc: 83.0, data: '2026-07-01' },
+            ];
+            setPomiary(domyslne);
+            localStorage.setItem(`historia_pomiarow_szczegolowa_${userId}`, JSON.stringify(domyslne));
+          }
+        }
+      } catch (e) {
+        console.error('Błąd pobierania pomiarów:', e);
+      } finally {
+        setLadowanie(false);
+      }
     }
+
+    wczytajPomiary();
   }, []);
 
-  const dodajPomiar = (e: React.FormEvent) => {
+  const dodajPomiar = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!wartosc) return;
 
+    const userId = getActiveUserId();
     const nowy = {
       id: Date.now(),
+      user_id: userId,
       kategoria,
       wartosc: Number(wartosc),
       data: dataPomiaru
@@ -44,17 +75,26 @@ export default function PomiaryPage() {
 
     const zaktualizowane = [...pomiary, nowy];
     setPomiary(zaktualizowane);
+    localStorage.setItem(`historia_pomiarow_szczegolowa_${userId}`, JSON.stringify(zaktualizowane));
     localStorage.setItem('historia_pomiarow_szczegolowa', JSON.stringify(zaktualizowane));
     setWartosc('');
+
+    // Zapis w bazie Supabase
+    await supabase.from('pomiary').insert([nowy]);
   };
 
-  const usunPomiar = (id: number) => {
+  const usunPomiar = async (id: number) => {
+    const userId = getActiveUserId();
     const zaktualizowane = pomiary.filter(p => p.id !== id);
     setPomiary(zaktualizowane);
+    localStorage.setItem(`historia_pomiarow_szczegolowa_${userId}`, JSON.stringify(zaktualizowane));
     localStorage.setItem('historia_pomiarow_szczegolowa', JSON.stringify(zaktualizowane));
+
+    // Usunięcie z bazy Supabase
+    await supabase.from('pomiary').delete().eq('id', id);
   };
 
-  // Filtrowanie pomiariów dla wybranej kategorii i sortowanie po dacie
+  // Filtrowanie pomiarów dla wybranej kategorii i sortowanie po dacie
   const przefiltrowane = pomiary
     .filter(p => p.kategoria === kategoria)
     .sort((a, b) => new Date(a.data).getTime() - new Date(b.data).getTime());
@@ -64,8 +104,19 @@ export default function PomiaryPage() {
   const maxVal = przefiltrowane.length > 0 ? Math.max(...przefiltrowane.map(p => p.wartosc)) + 2 : 100;
   const range = maxVal - minVal || 1;
 
+  if (ladowanie) {
+    return (
+      <div className="min-h-screen bg-zinc-950 flex items-center justify-center text-emerald-400">
+        <p className="font-bold animate-pulse">Ładowanie pomiarów...</p>
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-2xl mx-auto p-6 text-white min-h-screen bg-zinc-950 space-y-6 pb-16">
+      {/* PRZEŁĄCZNIK PROFILI */}
+      <ProfilSwitcher />
+
       {/* NAGŁÓWEK */}
       <div className="flex justify-between items-center bg-zinc-900 border border-zinc-800 p-5 rounded-2xl shadow-xl">
         <div>
@@ -84,6 +135,7 @@ export default function PomiaryPage() {
           {kategorie.map((kat) => (
             <button
               key={kat}
+              type="button"
               onClick={() => setKategoria(kat)}
               className={`px-3 py-1.5 rounded-full text-xs font-bold transition ${kategoria === kat ? 'bg-emerald-500 text-black shadow' : 'bg-zinc-800 text-zinc-300 hover:bg-zinc-700'}`}
             >
@@ -108,7 +160,6 @@ export default function PomiaryPage() {
           <div className="relative h-52 w-full bg-zinc-950 p-4 rounded-xl border border-zinc-800 flex flex-col justify-between">
             {/* SVG Line Chart */}
             <svg className="absolute inset-0 w-full h-full p-6 overflow-visible" preserveAspectRatio="none" viewBox="0 0 100 100">
-              {/* Linia wykresu */}
               <path
                 d={przefiltrowane.reduce((acc, p, i) => {
                   const x = (i / (przefiltrowane.length - 1)) * 100;
@@ -184,7 +235,7 @@ export default function PomiaryPage() {
                   <span className="font-bold text-emerald-400 text-sm">{p.wartosc}</span>
                   <span className="text-zinc-400 ml-2">({p.data})</span>
                 </div>
-                <button onClick={() => usunPomiar(p.id)} className="text-zinc-500 hover:text-red-400 font-bold px-2">Usuń</button>
+                <button type="button" onClick={() => usunPomiar(p.id)} className="text-zinc-500 hover:text-red-400 font-bold px-2">Usuń</button>
               </div>
             ))
           )}
