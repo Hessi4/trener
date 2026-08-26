@@ -6,8 +6,6 @@ export const dynamic = 'force-dynamic';
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { supabase } from '@/app/lib/supabase';
-import { getActiveUserId } from '@/app/lib/user';
-import ProfilSwitcher from '@/app/components/ProfilSwitcher';
 
 export default function EdytorPlanuPage() {
   const [plan, setPlan] = useState<any>(null);
@@ -23,36 +21,38 @@ export default function EdytorPlanuPage() {
   const [nowaNazwaCwiczenia, setNowaNazwaCwiczenia] = useState('');
   const [nowyOpisSerii, setNowyOpisSerii] = useState('3x10');
   
-  // Stan edycji konkretnego ćwiczenia (-1 oznacza dodawanie nowego)
+  // Stan edycji konkretnego ćwiczenia
   const [edytowaneCwiczenieIdx, setEdytowaneCwiczenieIdx] = useState<number | null>(null);
-
   const [ladujeAi, setLadujeAi] = useState(false);
 
   useEffect(() => {
     async function wczytajPlan() {
       try {
-        const userId = getActiveUserId();
-        
-        // 1. Próba pobrania planu z Supabase dla danego profilu
-        const { data: dbData } = await supabase
-          .from('plany')
-          .select('dane_planu')
-          .eq('id', userId)
-          .single();
+        const { data: { user } } = await supabase.auth.getUser();
 
-        if (dbData?.dane_planu) {
-          setPlan(dbData.dane_planu);
-        } else {
-          // 2. Fallback do pamięci lokalnej
-          const local = localStorage.getItem(`wygenerowany_plan_ai_${userId}`) || localStorage.getItem('wygenerowany_plan_ai');
-          if (local) {
-            setPlan(JSON.parse(local));
-          } else {
-            setPlan({
-              makroskladniki: { kalorieKcal: 2250, bialkoGramy: 170, weglowodanyGramy: 240, tluszczeGramy: 70 },
-              treningiTygodnia: []
-            });
+        if (user) {
+          // 1. Pobranie planu przypisanego bezpośrednio do konta
+          const { data: dbData } = await supabase
+            .from('plany')
+            .select('dane_planu')
+            .eq('user_id', user.id)
+            .maybeSingle();
+
+          if (dbData?.dane_planu) {
+            setPlan(dbData.dane_planu);
+            return;
           }
+        }
+
+        // 2. Fallback do pamięci lokalnej
+        const local = localStorage.getItem('wygenerowany_plan_ai');
+        if (local) {
+          setPlan(JSON.parse(local));
+        } else {
+          setPlan({
+            makroskladniki: { kalorieKcal: 2250, bialkoGramy: 170, weglowodanyGramy: 240, tluszczeGramy: 70 },
+            treningiTygodnia: []
+          });
         }
       } catch (e) {
         console.error("Błąd podczas ładowania planu:", e);
@@ -66,19 +66,17 @@ export default function EdytorPlanuPage() {
 
   const zapiszZmiany = async (zaktualizowanyPlan: any) => {
     setPlan(zaktualizowanyPlan);
-    const userId = getActiveUserId();
-    
-    // Zapis w pamięci lokalnej
-    localStorage.setItem(`wygenerowany_plan_ai_${userId}`, JSON.stringify(zaktualizowanyPlan));
     localStorage.setItem('wygenerowany_plan_ai', JSON.stringify(zaktualizowanyPlan));
 
-    // Zapis w chmurze Supabase
     try {
-      await supabase.from('plany').upsert({
-        id: userId,
-        dane_planu: zaktualizowanyPlan,
-        zaktualizowano_at: new Date().toISOString()
-      });
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        await supabase.from('plany').upsert({
+          user_id: user.id,
+          dane_planu: zaktualizowanyPlan,
+          zaktualizowano_at: new Date().toISOString()
+        }, { onConflict: 'user_id' });
+      }
     } catch (err) {
       console.error("Błąd zapisu planu w Supabase:", err);
     }
@@ -203,7 +201,7 @@ Zwróć WYŁĄCZNIE poprawną tablicę JSON w formacie obiektów:
         throw new Error(data.error?.message || "Błąd komunikacji z API Google.");
       }
 
-      const jsonString = data.candidates[0].content.parts[0].text;
+      const jsonString = data.candidates?.[0]?.content?.parts?.[0]?.text;
       const wygenerowaneCwiczenia = JSON.parse(jsonString);
 
       const dni = [...plan.treningiTygodnia];
@@ -230,9 +228,6 @@ Zwróć WYŁĄCZNIE poprawną tablicę JSON w formacie obiektów:
 
   return (
     <div className="max-w-2xl mx-auto p-6 text-white min-h-screen bg-zinc-950 space-y-6 pb-16">
-      {/* PRZEŁĄCZNIK PROFILI */}
-      <ProfilSwitcher />
-
       {/* NAGŁÓWEK */}
       <div className="flex justify-between items-center bg-zinc-900 border border-zinc-800 p-5 rounded-2xl shadow-xl">
         <div>
@@ -279,12 +274,13 @@ Zwróć WYŁĄCZNIE poprawną tablicę JSON w formacie obiektów:
             {plan.treningiTygodnia.map((d: any, idx: number) => (
               <div key={idx} className="flex items-center gap-1">
                 <button
+                  type="button"
                   onClick={() => { setWybranyIdx(idx); setEdytowaneCwiczenieIdx(null); setNowaNazwaCwiczenia(''); }}
                   className={`px-3 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition ${wybranyIdx === idx ? 'bg-emerald-600 text-white shadow' : 'bg-zinc-800 text-zinc-400 hover:text-white'}`}
                 >
                   {d.dzienTygodnia}: {d.tytul} ({d.typ})
                 </button>
-                <button onClick={() => usunDzien(idx)} className="text-zinc-500 hover:text-red-400 text-xs px-1">✕</button>
+                <button type="button" onClick={() => usunDzien(idx)} className="text-zinc-500 hover:text-red-400 text-xs px-1">✕</button>
               </div>
             ))}
           </div>
@@ -298,6 +294,7 @@ Zwróć WYŁĄCZNIE poprawną tablicę JSON w formacie obiektów:
                   <p className="text-xs text-zinc-400">Typ: <b>{aktualnyDzien.typ}</b></p>
                 </div>
                 <button 
+                  type="button"
                   onClick={generujDzienAIBezposrednio}
                   disabled={ladujeAi}
                   className="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold px-4 py-2 rounded-xl transition shadow flex items-center gap-1 disabled:opacity-50"
@@ -337,7 +334,7 @@ Zwróć WYŁĄCZNIE poprawną tablicę JSON w formacie obiektów:
                 </button>
               </form>
 
-              {/* Lista ćwiczeń z przyciskami Edytuj oraz Usuń */}
+              {/* Lista ćwiczeń */}
               <div className="space-y-2">
                 {(!aktualnyDzien.cwiczeniaIZadania || aktualnyDzien.cwiczeniaIZadania.length === 0) ? (
                   <p className="text-zinc-500 text-xs text-center py-2">Brak pozycji w tym dniu.</p>
@@ -350,12 +347,14 @@ Zwróć WYŁĄCZNIE poprawną tablicę JSON w formacie obiektów:
                       </div>
                       <div className="flex items-center gap-2">
                         <button 
+                          type="button"
                           onClick={() => rozpocznijEdycje(cIdx)} 
                           className="bg-zinc-800 hover:bg-zinc-700 text-emerald-400 font-medium px-2.5 py-1 rounded-lg transition"
                         >
                           Edytuj
                         </button>
                         <button 
+                          type="button"
                           onClick={() => usunCwiczenie(cIdx)} 
                           className="text-zinc-500 hover:text-red-400 font-bold px-2 py-1 transition"
                         >

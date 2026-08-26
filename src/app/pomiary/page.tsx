@@ -6,8 +6,6 @@ export const dynamic = 'force-dynamic';
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { supabase } from '@/app/lib/supabase';
-import { getActiveUserId } from '@/app/lib/user';
-import ProfilSwitcher from '@/app/components/ProfilSwitcher';
 
 export default function PomiaryPage() {
   const [pomiary, setPomiary] = useState<any[]>([]);
@@ -24,31 +22,28 @@ export default function PomiaryPage() {
   useEffect(() => {
     async function wczytajPomiary() {
       try {
-        const userId = getActiveUserId();
-        
-        // 1. Pobieranie pomiarów z Supabase dla danego profilu
-        const { data: dbData } = await supabase
-          .from('pomiary')
-          .select('*')
-          .eq('user_id', userId)
-          .order('data', { ascending: false });
+        const { data: { user } } = await supabase.auth.getUser();
 
-        if (dbData && dbData.length > 0) {
-          setPomiary(dbData);
-        } else {
-          // 2. Fallback do pamięci lokalnej
-          const local = localStorage.getItem(`historia_pomiarow_szczegolowa_${userId}`) || localStorage.getItem('historia_pomiarow_szczegolowa');
-          if (local) {
-            setPomiary(JSON.parse(local));
-          } else {
-            const domyslne = [
-              { id: 1, user_id: userId, kategoria: 'Masa ciała', wartosc: 85, data: '2026-05-01' },
-              { id: 2, user_id: userId, kategoria: 'Masa ciała', wartosc: 84.2, data: '2026-06-01' },
-              { id: 3, user_id: userId, kategoria: 'Masa ciała', wartosc: 83.0, data: '2026-07-01' },
-            ];
-            setPomiary(domyslne);
-            localStorage.setItem(`historia_pomiarow_szczegolowa_${userId}`, JSON.stringify(domyslne));
+        if (user) {
+          // 1. Pobieranie pomiarów z Supabase dla zalogowanego konta
+          const { data: dbData } = await supabase
+            .from('pomiary')
+            .select('*')
+            .eq('user_id', user.id)
+            .order('data', { ascending: false });
+
+          if (dbData && dbData.length > 0) {
+            setPomiary(dbData);
+            return;
           }
+        }
+
+        // 2. Fallback do pamięci lokalnej
+        const local = localStorage.getItem('historia_pomiarow_szczegolowa');
+        if (local) {
+          setPomiary(JSON.parse(local));
+        } else {
+          setPomiary([]);
         }
       } catch (e) {
         console.error('Błąd pobierania pomiarów:', e);
@@ -64,42 +59,51 @@ export default function PomiaryPage() {
     e.preventDefault();
     if (!wartosc) return;
 
-    const userId = getActiveUserId();
-    const nowy = {
-      id: Date.now(),
-      user_id: userId,
-      kategoria,
-      wartosc: Number(wartosc),
-      data: dataPomiaru
-    };
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      const userId = user ? user.id : 'anonim';
 
-    const zaktualizowane = [...pomiary, nowy];
-    setPomiary(zaktualizowane);
-    localStorage.setItem(`historia_pomiarow_szczegolowa_${userId}`, JSON.stringify(zaktualizowane));
-    localStorage.setItem('historia_pomiarow_szczegolowa', JSON.stringify(zaktualizowane));
-    setWartosc('');
+      const nowy = {
+        id: Date.now(),
+        user_id: userId,
+        kategoria,
+        wartosc: Number(wartosc),
+        data: dataPomiaru
+      };
 
-    // Zapis w bazie Supabase
-    await supabase.from('pomiary').insert([nowy]);
+      const zaktualizowane = [nowy, ...pomiary];
+      setPomiary(zaktualizowane);
+      localStorage.setItem('historia_pomiarow_szczegolowa', JSON.stringify(zaktualizowane));
+      setWartosc('');
+
+      // Zapis w bazie Supabase
+      if (user) {
+        await supabase.from('pomiary').insert([nowy]);
+      }
+    } catch (err) {
+      console.error('Błąd podczas zapisywania pomiaru:', err);
+    }
   };
 
   const usunPomiar = async (id: number) => {
-    const userId = getActiveUserId();
-    const zaktualizowane = pomiary.filter(p => p.id !== id);
-    setPomiary(zaktualizowane);
-    localStorage.setItem(`historia_pomiarow_szczegolowa_${userId}`, JSON.stringify(zaktualizowane));
-    localStorage.setItem('historia_pomiarow_szczegolowa', JSON.stringify(zaktualizowane));
+    try {
+      const zaktualizowane = pomiary.filter(p => p.id !== id);
+      setPomiary(zaktualizowane);
+      localStorage.setItem('historia_pomiarow_szczegolowa', JSON.stringify(zaktualizowane));
 
-    // Usunięcie z bazy Supabase
-    await supabase.from('pomiary').delete().eq('id', id);
+      // Usunięcie z bazy Supabase
+      await supabase.from('pomiary').delete().eq('id', id);
+    } catch (err) {
+      console.error('Błąd podczas usuwania pomiaru:', err);
+    }
   };
 
-  // Filtrowanie pomiarów dla wybranej kategorii i sortowanie po dacie
+  // Filtrowanie pomiarów dla wybranej kategorii i sortowanie chronologicznie do wykresu
   const przefiltrowane = pomiary
     .filter(p => p.kategoria === kategoria)
     .sort((a, b) => new Date(a.data).getTime() - new Date(b.data).getTime());
 
-  // Obliczenia do prostego wykresu SVG
+  // Obliczenia do wykresu SVG
   const minVal = przefiltrowane.length > 0 ? Math.min(...przefiltrowane.map(p => p.wartosc)) - 2 : 0;
   const maxVal = przefiltrowane.length > 0 ? Math.max(...przefiltrowane.map(p => p.wartosc)) + 2 : 100;
   const range = maxVal - minVal || 1;
@@ -114,9 +118,6 @@ export default function PomiaryPage() {
 
   return (
     <div className="max-w-2xl mx-auto p-6 text-white min-h-screen bg-zinc-950 space-y-6 pb-16">
-      {/* PRZEŁĄCZNIK PROFILI */}
-      <ProfilSwitcher />
-
       {/* NAGŁÓWEK */}
       <div className="flex justify-between items-center bg-zinc-900 border border-zinc-800 p-5 rounded-2xl shadow-xl">
         <div>
@@ -158,7 +159,7 @@ export default function PomiaryPage() {
           </div>
         ) : (
           <div className="relative h-52 w-full bg-zinc-950 p-4 rounded-xl border border-zinc-800 flex flex-col justify-between">
-            {/* SVG Line Chart */}
+            {/* Linia SVG */}
             <svg className="absolute inset-0 w-full h-full p-6 overflow-visible" preserveAspectRatio="none" viewBox="0 0 100 100">
               <path
                 d={przefiltrowane.reduce((acc, p, i) => {
