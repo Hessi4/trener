@@ -31,17 +31,17 @@ Musisz ułożyć treningi DOKŁADNIE w te dni i w takiej formie, jak zażyczył 
 ${profil.harmonogram ? profil.harmonogram.map((d: any) => `- ${d.dzienTygodnia}: ${d.rodzajTreningu}`).join('\n') : 'Brak wytycznych - rozłóż standardowo.'}
 
 DOSTĘPNY SPRZĘT NA SIŁOWNI:
-- Lista sprzętu: ${JSON.stringify(profil.sprzet)}
+- Lista sprzętu: ${JSON.stringify(profil.sprzet || [])}
 - Maksymalna waga hantli: ${profil.szczegolySilowni?.maksHantleKg || 0} kg
 - Maksymalne obciążenie na gryf: ${profil.szczegolySilowni?.maksObciazenieGryfKg || 0} kg
 *UWAGA: Rozpisując trening "Siłownia", używaj TYLKO ćwiczeń na sprzęt z powyższej listy.*
 
 PARAMETRY BASENU (jeśli w harmonogramie jest "Basen"):
-- Poziom: ${profil.basen?.poziom}
-- Opanowane style: ${JSON.stringify(profil.basen?.znaneStyle)}
-- Dostępne akcesoria: ${JSON.stringify(profil.basen?.akcesoria)}
-- Tempo komfortowe (100m): ${profil.basen?.tempo100mKraulKomfort}
-- Średnia objętość sesji: ${profil.basen?.sredniaObjetoscSesjiMetry} m
+- Poziom: ${profil.basen?.poziom || 'Brak danych'}
+- Opanowane style: ${JSON.stringify(profil.basen?.znaneStyle || [])}
+- Dostępne akcesoria: ${JSON.stringify(profil.basen?.akcesoria || [])}
+- Tempo komfortowe (100m): ${profil.basen?.tempo100mKraulKomfort || 'Nie określono'}
+- Średnia objętość sesji: ${profil.basen?.sredniaObjetoscSesjiMetry || 0} m
 
 TWOJE ZADANIE:
 1. Oblicz całkowite zapotrzebowanie kaloryczne (TDEE) uwzględniając płeć, wiek, wagę, wzrost i poziom aktywności.
@@ -72,19 +72,19 @@ ZWRÓĆ WYŁĄCZNIE POPRAWNY OBIEKT JSON WG TEGO SCHEMATU:
 }
 `;
 
-    // Najszybszy i najtańszy endpoint v1beta z modelem gemini-3.6-flash
+    // Endpoint v1beta z modelem gemini-3.6-flash
     const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${apiKey}`;
 
     const response = await fetch(url, {
-     method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({
-    contents: [{ role: 'user', parts: [{ text: prompt }] }],
-    generationConfig: { 
-      responseMimeType: "application/json",
-      temperature: 0.2
-    }
-  })
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ role: 'user', parts: [{ text: promptSystemowy }] }],
+        generationConfig: { 
+          responseMimeType: "application/json",
+          temperature: 0.2
+        }
+      })
     });
 
     const data = await response.json();
