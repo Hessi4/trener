@@ -11,7 +11,7 @@
   "dependencies": {
     "@ai-sdk/google": "^4.0.44",
     "@google/generative-ai": "^0.24.1",
-    "@supabase/supabase-js": "^2.112.3",
+    "@supabase/supabase-js": "^2.112.4",
     "@zxing/library": "^0.23.0",
     "ai": "^7.0.66",
     "lucide-react": "^1.31.0",
