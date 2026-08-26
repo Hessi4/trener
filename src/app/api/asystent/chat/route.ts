@@ -59,17 +59,14 @@ Zwróć WYŁĄCZNIE poprawny format JSON (schemat wyjściowy):
 
     const response = await fetch(url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ role: 'user', parts: [{ text: prompt }] }],
-        generationConfig: { 
-          responseMimeType: "application/json",
-          temperature: 0.3,
-          thinkingConfig: {
-    mode: "OFF"
-  }
-        }
-      })
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    contents: [{ role: 'user', parts: [{ text: prompt }] }],
+    generationConfig: { 
+      responseMimeType: "application/json",
+      temperature: 0.2
+    }
+  })
     });
 
     const data = await response.json();
