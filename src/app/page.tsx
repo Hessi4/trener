@@ -1,18 +1,18 @@
 // src/app/page.tsx
 "use client";
 
+export const dynamic = 'force-dynamic';
+
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/app/lib/supabase';
-import { getActiveUserId } from '@/app/lib/user';
-import ProfilSwitcher from '@/app/components/ProfilSwitcher';
 
 export default function PulpitGłówny() {
   const router = useRouter();
+  const [user, setUser] = useState<any>(null);
   const [plan, setPlan] = useState<any>(null);
   const [ladowanie, setLadowanie] = useState(true);
-  const [aktywnyUzytkownik, setAktywnyUzytkownik] = useState<string>('Tata');
   
   // --- SYSTEM DAT ---
   const getDzis = () => new Date().toISOString().split('T')[0];
@@ -45,75 +45,59 @@ export default function PulpitGłówny() {
   
   const [ladowanieAiPosilek, setLadowanieAiPosilek] = useState(false);
 
-  // GŁÓWNA INICJALIZACJA Z SUPABASE
+  // Inicjalizacja danych użytkownika z Supabase Auth
   useEffect(() => {
-    async function wczytajDaneZChmury() {
+    async function wczytajDane() {
       try {
-        const userId = getActiveUserId();
-        setAktywnyUzytkownik(userId);
+        const { data: { user: currentUser } } = await supabase.auth.getUser();
 
-        // 1. Pobieranie planu z Supabase dla wybranego profilu
+        if (!currentUser) {
+          router.push('/logowanie');
+          return;
+        }
+
+        setUser(currentUser);
+
+        // 1. Pobieranie planu
         const { data: planData } = await supabase
           .from('plany')
           .select('dane_planu')
-          .eq('id', userId)
+          .eq('user_id', currentUser.id)
           .single();
 
-        let aktualnyPlan = planData?.dane_planu;
-
-        // Fallback do localStorage jeśli w bazie jeszcze nie ma
-        if (!aktualnyPlan) {
-          const zapisanyLocal = localStorage.getItem(`wygenerowany_plan_ai_${userId}`) || localStorage.getItem('wygenerowany_plan_ai');
-          if (zapisanyLocal) {
-            aktualnyPlan = JSON.parse(zapisanyLocal);
-            // Wyślij do Supabase w tle
-            supabase.from('plany').upsert({ id: userId, dane_planu: aktualnyPlan });
-          }
-        }
-
-        if (!aktualnyPlan) {
+        if (!planData?.dane_planu) {
           router.push('/ankieta-startowa');
           return;
         }
 
-        setPlan(aktualnyPlan);
+        setPlan(planData.dane_planu);
 
-        // 2. Pobieranie treningów z Supabase dla wybranego profilu
+        // 2. Pobieranie treningów
         const { data: treningiData } = await supabase
           .from('treningi')
           .select('*')
-          .eq('user_id', userId)
+          .eq('user_id', currentUser.id)
           .order('utworzono_at', { ascending: true });
 
-        if (treningiData && treningiData.length > 0) {
-          setTreningiZapis(treningiData);
-        } else {
-          const localT = localStorage.getItem(`moje_treningi_${userId}`) || localStorage.getItem('moje_treningi_dzis');
-          if (localT) setTreningiZapis(JSON.parse(localT));
-        }
+        if (treningiData) setTreningiZapis(treningiData);
 
-        // 3. Pobieranie posiłków z Supabase dla wybranego profilu
+        // 3. Pobieranie posiłków
         const { data: posilkiData } = await supabase
           .from('posilki')
           .select('*')
-          .eq('user_id', userId)
+          .eq('user_id', currentUser.id)
           .order('utworzono_at', { ascending: true });
 
-        if (posilkiData && posilkiData.length > 0) {
-          setPosilki(posilkiData);
-        } else {
-          const localP = localStorage.getItem(`moje_posilki_${userId}`) || localStorage.getItem('moje_posilki_dzis');
-          if (localP) setPosilki(JSON.parse(localP));
-        }
+        if (posilkiData) setPosilki(posilkiData);
 
       } catch (err) {
-        console.error("Błąd pobierania danych z Supabase:", err);
+        console.error("Błąd podczas ładowania:", err);
       } finally {
         setLadowanie(false);
       }
     }
 
-    wczytajDaneZChmury();
+    wczytajDane();
   }, [router]);
 
   useEffect(() => {
@@ -129,10 +113,15 @@ export default function PulpitGłówny() {
     }
   }, [wybranaData, plan]);
 
+  const wyloguj = async () => {
+    await supabase.auth.signOut();
+    router.push('/logowanie');
+  };
+
   if (ladowanie) {
     return (
       <div className="min-h-screen bg-zinc-950 flex items-center justify-center text-emerald-400">
-        <p className="font-bold animate-pulse">Łączenie z bazą danych...</p>
+        <p className="font-bold animate-pulse">Łączenie z Twoim kontem...</p>
       </div>
     );
   }
@@ -282,10 +271,9 @@ export default function PulpitGłówny() {
     setSerie(zaktualizowane);
   };
 
-  // ZAPIS TRENINGU DO SUPABASE
   const zapiszWynikTreningu = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!wybraneCwiczenie) return;
+    if (!wybraneCwiczenie || !user) return;
     
     const ukoczoneSerie = serie.filter(s => s.ukoczona);
     if (ukoczoneSerie.length === 0) {
@@ -304,11 +292,9 @@ export default function PulpitGłówny() {
       podsumowanieStr = ukoczoneSerie.map(s => `S${s.set}: ${s.ciezar || 0}kg×${s.powtorzenia || 0}`).join(' | ');
     }
 
-    const userId = getActiveUserId();
-
     const nowyWynik = {
       id: Date.now(),
-      user_id: userId,
+      user_id: user.id,
       cwiczenie: wybraneCwiczenie,
       typ: typCwiczenia,
       serie: ukoczoneSerie,
@@ -318,21 +304,14 @@ export default function PulpitGłówny() {
 
     const zaktualizowane = [...treningiZapis, nowyWynik];
     setTreningiZapis(zaktualizowane);
-    localStorage.setItem(`moje_treningi_${userId}`, JSON.stringify(zaktualizowane));
 
-    // Zapis do Supabase
     await supabase.from('treningi').insert([nowyWynik]);
-
     setWybraneCwiczenie('');
   };
 
-  // USUWANIE TRENINGU Z SUPABASE
   const usunWynik = async (id: number) => {
-    const userId = getActiveUserId();
     const zaktualizowane = treningiZapis.filter(t => t.id !== id);
     setTreningiZapis(zaktualizowane);
-    localStorage.setItem(`moje_treningi_${userId}`, JSON.stringify(zaktualizowane));
-
     await supabase.from('treningi').delete().eq('id', id);
   };
 
@@ -372,21 +351,18 @@ export default function PulpitGłówny() {
     }
   };
 
-  // ZAPIS POSIŁKU DO SUPABASE
   const dodajPosilek = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!nazwaPosilku || !kalorie) return;
+    if (!nazwaPosilku || !kalorie || !user) return;
     
     let finalnaNazwa = nazwaPosilku;
     if (wagaPosilku && !finalnaNazwa.includes(wagaPosilku)) {
       finalnaNazwa = `${finalnaNazwa} (${wagaPosilku}g)`;
     }
 
-    const userId = getActiveUserId();
-
     const nowy = {
       id: Date.now(),
-      user_id: userId,
+      user_id: user.id,
       nazwa: finalnaNazwa,
       kalorie: Number(kalorie) || 0,
       bialko: Number(bialko) || 0,
@@ -397,21 +373,14 @@ export default function PulpitGłówny() {
 
     const zaktualizowane = [...posilki, nowy];
     setPosilki(zaktualizowane);
-    localStorage.setItem(`moje_posilki_${userId}`, JSON.stringify(zaktualizowane));
-    
-    // Zapis do Supabase
     await supabase.from('posilki').insert([nowy]);
 
     setNazwaPosilku(''); setWagaPosilku(''); setKalorie(''); setBialko(''); setWeglowodany(''); setTluszcze('');
   };
 
-  // USUWANIE POSIŁKU Z SUPABASE
   const usunPosilek = async (id: number) => {
-    const userId = getActiveUserId();
     const zaktualizowane = posilki.filter(p => p.id !== id);
     setPosilki(zaktualizowane);
-    localStorage.setItem(`moje_posilki_${userId}`, JSON.stringify(zaktualizowane));
-
     await supabase.from('posilki').delete().eq('id', id);
   };
 
@@ -432,25 +401,22 @@ export default function PulpitGłówny() {
 
   return (
     <div className="max-w-2xl mx-auto p-6 text-white min-h-screen bg-zinc-950 space-y-6 pb-16">
-      {/* PRZEŁĄCZNIK PROFILI */}
-      <ProfilSwitcher />
-
       {/* NAGŁÓWEK */}
       <div className="flex justify-between items-center bg-zinc-900 border border-zinc-800 p-5 rounded-2xl shadow-xl flex-wrap gap-3">
         <div>
           <h1 className="text-xl font-bold text-emerald-400">Twój Pulpit</h1>
-          <p className="text-xs text-zinc-400">Profil: <span className="text-emerald-400 font-semibold">{aktywnyUzytkownik}</span> ☁️</p>
+          <p className="text-xs text-zinc-400">Konto: <span className="text-emerald-400 font-semibold">{user?.email}</span></p>
         </div>
-        <div className="flex gap-2 flex-wrap justify-end">
+        <div className="flex gap-2 flex-wrap justify-end items-center">
           <Link href="/pomiary" className="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold px-3 py-2 rounded-xl transition shadow">
             📈 Pomiary
           </Link>
           <Link href="/edytor-planu" className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold px-3 py-2 rounded-xl transition shadow">
             ✏️ Edytor
           </Link>
-          <Link href="/skaner" className="bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs font-medium px-3 py-2 rounded-xl transition">
-            📷 Skaner
-          </Link>
+          <button onClick={wyloguj} className="bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs font-medium px-3 py-2 rounded-xl transition">
+            Wyloguj
+          </button>
         </div>
       </div>
 
@@ -562,7 +528,6 @@ export default function PulpitGłówny() {
                       <button onClick={() => setWybraneCwiczenie('')} className="text-xs text-zinc-500 hover:text-white">Zamknij</button>
                     </div>
 
-                    {/* DYNAMICZNE NAGŁÓWKI */}
                     <div className="grid grid-cols-12 gap-2 text-[10px] text-zinc-400 uppercase font-bold text-center pt-2">
                       <span className="col-span-1">SET</span>
                       <span className="col-span-3">PREV</span>
@@ -590,7 +555,6 @@ export default function PulpitGłówny() {
                       <span className="col-span-2 text-right pr-2">STATUS</span>
                     </div>
 
-                    {/* WIERSZE SERII */}
                     {serie.map((s, idx) => {
                       const prevWynik = pobierzPoprzedniWynikDlaSerii(wybraneCwiczenie, s.set);
 
@@ -599,7 +563,6 @@ export default function PulpitGłówny() {
                           <span className="col-span-1 text-xs font-bold text-emerald-400 text-center">{s.set}</span>
                           <span className="col-span-3 text-[11px] text-zinc-400 text-center truncate">{prevWynik}</span>
 
-                          {/* SIŁOWNIA */}
                           {typCwiczenia === 'silowe' && (
                             <>
                               <div className="col-span-3">
@@ -619,7 +582,6 @@ export default function PulpitGłówny() {
                             </>
                           )}
 
-                          {/* PŁYWANIE */}
                           {typCwiczenia === 'plywanie' && (
                             <>
                               <div className="col-span-4">
@@ -639,7 +601,6 @@ export default function PulpitGłówny() {
                             </>
                           )}
 
-                          {/* CARDIO */}
                           {typCwiczenia === 'cardio' && (
                             <>
                               <div className="col-span-3">
@@ -659,7 +620,6 @@ export default function PulpitGłówny() {
                             </>
                           )}
 
-                          {/* STATUS */}
                           {typCwiczenia === 'status' && (
                             <div className="col-span-6 text-center text-xs text-zinc-400">
                               Odhacz wykonanie

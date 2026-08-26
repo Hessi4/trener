@@ -6,7 +6,6 @@ export const dynamic = 'force-dynamic';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/app/lib/supabase';
-import { getActiveUserId } from '@/app/lib/user';
 import { 
   ProfilUzytkownikaRozszerzony, 
   CelGlowny, 
@@ -90,6 +89,7 @@ export default function AnkietaStartowa() {
   const [krok, setKrok] = useState<number>(1);
   const [ladowanie, setLadowanie] = useState<boolean>(false);
   const [zamontowano, setZamontowano] = useState<boolean>(false);
+  const [userId, setUserId] = useState<string | null>(null);
 
   const [dane, setDane] = useState<ProfilUzytkownikaRozszerzony>({
     plec: 'mezczyzna',
@@ -137,38 +137,44 @@ export default function AnkietaStartowa() {
     }))
   });
 
+  // Weryfikacja sesji użytkownika
   useEffect(() => {
-    setZamontowano(true);
-    const userId = getActiveUserId();
-    const zapisaneAutosave = localStorage.getItem(`autosave_ankieta_${userId}`) || localStorage.getItem('autosave_ankieta');
-    if (zapisaneAutosave) {
-      try {
-        const pobraneDane = JSON.parse(zapisaneAutosave);
-        
-        // AUTO-NAPRAWA: Łączymy stare dane z nowymi strukturami (żeby uniknąć crasha)
-        setDane(aktualne => ({
-          ...aktualne,
-          ...pobraneDane,
-          harmonogram: pobraneDane.harmonogram || aktualne.harmonogram,
-          pomiary: { ...aktualne.pomiary, ...(pobraneDane.pomiary || {}) },
-          basen: { ...aktualne.basen, ...(pobraneDane.basen || {}) }
-        }));
-      } catch (e) {
-        console.error(e);
+    async function sprawdzSesje() {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        router.push('/logowanie');
+        return;
+      }
+      setUserId(user.id);
+      setZamontowano(true);
+
+      const zapisaneAutosave = localStorage.getItem(`autosave_ankieta_${user.id}`);
+      if (zapisaneAutosave) {
+        try {
+          const pobraneDane = JSON.parse(zapisaneAutosave);
+          setDane(aktualne => ({
+            ...aktualne,
+            ...pobraneDane,
+            harmonogram: pobraneDane.harmonogram || aktualne.harmonogram,
+            pomiary: { ...aktualne.pomiary, ...(pobraneDane.pomiary || {}) },
+            basen: { ...aktualne.basen, ...(pobraneDane.basen || {}) }
+          }));
+        } catch (e) {
+          console.error(e);
+        }
       }
     }
-  }, []);
+    sprawdzSesje();
+  }, [router]);
 
   useEffect(() => {
-    if (zamontowano) {
-      const userId = getActiveUserId();
+    if (zamontowano && userId) {
       localStorage.setItem(`autosave_ankieta_${userId}`, JSON.stringify(dane));
-      localStorage.setItem('autosave_ankieta', JSON.stringify(dane));
     }
-  }, [dane, zamontowano]);
+  }, [dane, zamontowano, userId]);
 
   if (!zamontowano) {
-    return <div className="min-h-screen bg-slate-950 flex items-center justify-center text-slate-500 text-sm">Wczytywanie formularza...</div>;
+    return <div className="min-h-screen bg-slate-950 flex items-center justify-center text-slate-500 text-sm">Weryfikacja profilu...</div>;
   }
 
   const przelaczElement = <T,>(lista: T[], element: T): T[] => {
@@ -187,29 +193,30 @@ export default function AnkietaStartowa() {
   const zakonczAnkiete = async () => {
     setLadowanie(true);
     try {
-      const userId = getActiveUserId();
-      localStorage.setItem(`profil_uzytkownika_${userId}`, JSON.stringify(dane));
-      localStorage.setItem('profil_uzytkownika', JSON.stringify(dane));
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        router.push('/logowanie');
+        return;
+      }
 
       const dzisiejszaData = new Date().toISOString().split('T')[0];
       const zmapowanePomiary = [
-        { id: Date.now() + 1, kategoria: 'Masa ciała', wartosc: dane.wagaAktualnaKg || 0, data: dzisiejszaData },
-        { id: Date.now() + 2, kategoria: 'Klatka piersiowa', wartosc: dane.pomiary.klatkaCm || 0, data: dzisiejszaData },
-        { id: Date.now() + 3, kategoria: 'Talia', wartosc: dane.pomiary.pasTaliaCm || 0, data: dzisiejszaData },
-        { id: Date.now() + 4, kategoria: 'Biodra', wartosc: dane.pomiary.biodraCm || 0, data: dzisiejszaData },
-        { id: Date.now() + 5, kategoria: 'Szyja/kark', wartosc: dane.pomiary.karkSzyjaCm || 0, data: dzisiejszaData },
-        { id: Date.now() + 6, kategoria: 'Ramię/biceps', wartosc: dane.pomiary.bicepsCm || 0, data: dzisiejszaData },
-        { id: Date.now() + 7, kategoria: 'Udo', wartosc: dane.pomiary.udoCm || 0, data: dzisiejszaData },
-        { id: Date.now() + 8, kategoria: 'Łydka', wartosc: dane.pomiary.lydkaCm || 0, data: dzisiejszaData }
+        { id: Date.now() + 1, user_id: user.id, kategoria: 'Masa ciała', wartosc: dane.wagaAktualnaKg || 0, data: dzisiejszaData },
+        { id: Date.now() + 2, user_id: user.id, kategoria: 'Klatka piersiowa', wartosc: dane.pomiary.klatkaCm || 0, data: dzisiejszaData },
+        { id: Date.now() + 3, user_id: user.id, kategoria: 'Talia', wartosc: dane.pomiary.pasTaliaCm || 0, data: dzisiejszaData },
+        { id: Date.now() + 4, user_id: user.id, kategoria: 'Biodra', wartosc: dane.pomiary.biodraCm || 0, data: dzisiejszaData },
+        { id: Date.now() + 5, user_id: user.id, kategoria: 'Szyja/kark', wartosc: dane.pomiary.karkSzyjaCm || 0, data: dzisiejszaData },
+        { id: Date.now() + 6, user_id: user.id, kategoria: 'Ramię/biceps', wartosc: dane.pomiary.bicepsCm || 0, data: dzisiejszaData },
+        { id: Date.now() + 7, user_id: user.id, kategoria: 'Udo', wartosc: dane.pomiary.udoCm || 0, data: dzisiejszaData },
+        { id: Date.now() + 8, user_id: user.id, kategoria: 'Łydka', wartosc: dane.pomiary.lydkaCm || 0, data: dzisiejszaData }
       ].filter(p => p.wartosc > 0);
 
-      const istniejacePomiary = JSON.parse(localStorage.getItem(`historia_pomiarow_szczegolowa_${userId}`) || localStorage.getItem('historia_pomiarow_szczegolowa') || '[]');
-      const bezWypelniaczy = istniejacePomiary.filter((p: any) => p.data !== '2026-05-01' && p.data !== '2026-06-01' && p.data !== '2026-07-01');
-      const zaktualizowanePomiary = [...bezWypelniaczy, ...zmapowanePomiary];
-      
-      localStorage.setItem(`historia_pomiarow_szczegolowa_${userId}`, JSON.stringify(zaktualizowanePomiary));
-      localStorage.setItem('historia_pomiarow_szczegolowa', JSON.stringify(zaktualizowanePomiary));
+      // Zapis pomiarów początkowych do bazy Supabase
+      if (zmapowanePomiary.length > 0) {
+        await supabase.from('pomiary').insert(zmapowanePomiary);
+      }
 
+      // Generowanie planu przez backend Gemini API
       const res = await fetch('/api/asystent', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -222,14 +229,11 @@ export default function AnkietaStartowa() {
         throw new Error(json.error || 'Nieznany błąd serwera');
       }
 
-      localStorage.setItem(`wygenerowany_plan_ai_${userId}`, JSON.stringify(json));
-      localStorage.setItem('wygenerowany_plan_ai', JSON.stringify(json));
-      localStorage.removeItem(`autosave_ankieta_${userId}`);
-      localStorage.removeItem('autosave_ankieta');
+      localStorage.removeItem(`autosave_ankieta_${user.id}`);
 
-      // ZAPIS PLANU DO CHMURY SUPABASE DLA KONKRETNEGO PROFILU
+      // ZAPIS PLANU DO CHMURY SUPABASE DLA ZALOGOWANEGO UŻYTKOWNIKA GOOGLE
       await supabase.from('plany').upsert({
-        id: userId,
+        user_id: user.id,
         dane_planu: json,
         zaktualizowano_at: new Date().toISOString()
       });
