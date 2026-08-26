@@ -1,16 +1,17 @@
 // src/app/api/asystent/route.ts
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+export const maxDuration = 60; // Zezwala na dłuższy czas wykonania na serwerze
 
 export async function POST(req: Request) {
   try {
     const profil = await req.json();
     
-    // Twój klucz API Google Gemini
-    const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY || process.env.GEMINI_API_KEY;
+    // Klucz API po stronie serwera
+    const apiKey = process.env.GEMINI_API_KEY || process.env.NEXT_PUBLIC_GEMINI_API_KEY;
 
     if (!apiKey) {
-      return Response.json({ error: "Brak klucza API w konfiguracji." }, { status: 500 });
+      return Response.json({ error: "Brak klucza API GEMINI_API_KEY w zmiennych środowiskowych." }, { status: 500 });
     }
 
     const promptSystemowy = `
@@ -48,7 +49,7 @@ TWOJE ZADANIE:
 3. Oblicz makroskładniki (białko, tłuszcze, węglowodany).
 4. Ułóż 7-dniowy plan ćwiczeń, ściśle trzymając się Harmonogramu Treningowego.
 
-ZWRÓĆ WYŁĄCZNIE POPRAWNY OBIEKT JSON WG TEGO SCHEMATU (bez używania znaczników markdown):
+ZWRÓĆ WYŁĄCZNIE POPRAWNY OBIEKT JSON WG TEGO SCHEMATU:
 {
   "makroskladniki": {
     "kalorieKcal": 2250,
@@ -71,8 +72,8 @@ ZWRÓĆ WYŁĄCZNIE POPRAWNY OBIEKT JSON WG TEGO SCHEMATU (bez używania znaczni
 }
 `;
 
-    // POWRÓT DO TWOJEGO SPRAWDZONEGO LINKU!
-    const url = 'https://generativelanguage.googleapis.com/v1/models/gemini-3.6-flash:generateContent?key=' + apiKey;
+    // Najszybszy i najtańszy endpoint v1beta z modelem gemini-2.5-flash
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
 
     const response = await fetch(url, {
       method: 'POST',
@@ -84,7 +85,10 @@ ZWRÓĆ WYŁĄCZNIE POPRAWNY OBIEKT JSON WG TEGO SCHEMATU (bez używania znaczni
         }],
         generationConfig: {
           responseMimeType: "application/json",
-          temperature: 0.2
+          temperature: 0.2,
+          thinkingConfig: {
+            thinkingBudget: 0 // Wyłączenie zbędnego myślenia -> odpowiedź w 1-2 sekundy
+          }
         }
       })
     });
@@ -96,8 +100,13 @@ ZWRÓĆ WYŁĄCZNIE POPRAWNY OBIEKT JSON WG TEGO SCHEMATU (bez używania znaczni
       throw new Error(data.error?.message || "Błąd komunikacji z API Google.");
     }
 
-    let jsonString = data.candidates[0].content.parts[0].text;
+    let jsonString = data.candidates?.[0]?.content?.parts?.[0]?.text;
     
+    if (!jsonString) {
+      throw new Error("Pusta odpowiedź z modelu AI.");
+    }
+
+    // Bezpieczne czyszczenie ewentualnych znaczników markdown
     if (jsonString.includes('```json')) {
       jsonString = jsonString.split('```json')[1].split('```')[0].trim();
     } else if (jsonString.includes('```')) {

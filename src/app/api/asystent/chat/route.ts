@@ -1,13 +1,14 @@
 // src/app/api/asystent/chat/route.ts
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+export const maxDuration = 60;
 
 export async function POST(req: Request) {
   try {
     const { wiadomosc, aktualnyPlan, zapisaneTreningi, zapisanePosilki, historiaRozmowy, dzisiejszaData } = await req.json();
-    const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY || process.env.GEMINI_API_KEY;
+    const apiKey = process.env.GEMINI_API_KEY || process.env.NEXT_PUBLIC_GEMINI_API_KEY;
 
-    if (!apiKey) return Response.json({ error: "Brak klucza API." }, { status: 500 });
+    if (!apiKey) return Response.json({ error: "Brak klucza API GEMINI_API_KEY w zmiennych środowiskowych." }, { status: 500 });
 
     // Filtrujemy dane z dzisiejszego dnia
     const dzisiejszeTreningi = (zapisaneTreningi || []).filter((t: any) => t.data === dzisiejszaData);
@@ -25,7 +26,7 @@ DANE UŻYTKOWNIKA NA DZIEŃ DZISIEJSZY (${dzisiejszaData}):
 Twoje zadanie:
 Przeanalizuj pytanie użytkownika. Jeśli prosi o podsumowanie dnia, odnieś się DOKŁADNIE do zarejestrowanych dzisiejszych treningów (serie, ciężary, dystanse, czasy) oraz posiłków (zjedzone kalorie vs cel).
 
-Zwróć WYŁĄCZNIE poprawny format JSON (bez bloków markdown, bez tekstu poza JSON):
+Zwróć WYŁĄCZNIE poprawny format JSON (schemat wyjściowy):
 
 1. Jeśli odpowiadasz / podsumowujesz dzień / dajesz poradę:
 {
@@ -53,21 +54,35 @@ Zwróć WYŁĄCZNIE poprawny format JSON (bez bloków markdown, bez tekstu poza 
   }
 }`;
 
-    const url = 'https://generativelanguage.googleapis.com/v1/models/gemini-3.6-flash:generateContent?key=' + apiKey;
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
 
     const response = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         contents: [{ role: 'user', parts: [{ text: prompt }] }],
-        generationConfig: { temperature: 0.3 }
+        generationConfig: { 
+          responseMimeType: "application/json",
+          temperature: 0.3,
+          thinkingConfig: {
+            thinkingBudget: 0
+          }
+        }
       })
     });
 
     const data = await response.json();
     if (!response.ok) throw new Error(data.error?.message || "Błąd API Google.");
 
-    let jsonString = data.candidates[0].content.parts[0].text;
+    let jsonString = data.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (!jsonString) throw new Error("Pusta odpowiedź z modelu AI.");
+
+    if (jsonString.includes('```json')) {
+      jsonString = jsonString.split('```json')[1].split('```')[0].trim();
+    } else if (jsonString.includes('```')) {
+      jsonString = jsonString.split('```')[1].split('```')[0].trim();
+    }
+
     const match = jsonString.match(/\{[\s\S]*\}/);
     if (match) jsonString = match[0];
 
