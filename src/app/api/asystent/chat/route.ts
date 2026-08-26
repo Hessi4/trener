@@ -66,8 +66,8 @@ Zwróć WYŁĄCZNIE poprawny format JSON (schemat wyjściowy):
           responseMimeType: "application/json",
           temperature: 0.3,
           thinkingConfig: {
-            thinkingBudget: 0
-          }
+    mode: "OFF"
+  }
         }
       })
     });

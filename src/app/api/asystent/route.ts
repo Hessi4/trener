@@ -87,8 +87,8 @@ ZWRÓĆ WYŁĄCZNIE POPRAWNY OBIEKT JSON WG TEGO SCHEMATU:
           responseMimeType: "application/json",
           temperature: 0.2,
           thinkingConfig: {
-            thinkingBudget: 0 // Wyłączenie zbędnego myślenia -> odpowiedź w 1-2 sekundy
-          }
+    mode: "OFF"
+  }
         }
       })
     });

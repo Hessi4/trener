@@ -32,8 +32,8 @@ Zwróć WYŁĄCZNIE poprawną tablicę JSON w formacie obiektów:
           responseMimeType: "application/json",
           temperature: 0.3,
           thinkingConfig: {
-            thinkingBudget: 0
-          }
+    mode: "OFF"
+  }
         }
       })
     });

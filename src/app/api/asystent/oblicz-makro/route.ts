@@ -35,8 +35,8 @@ Zwróć WYŁĄCZNIE obiekt JSON wg schematu:
           responseMimeType: "application/json", 
           temperature: 0.1,
           thinkingConfig: {
-            thinkingBudget: 0 // Natychmiastowa odpowiedź (ułamki sekund)
-          }
+    mode: "OFF"
+  }
         }
       })
     });

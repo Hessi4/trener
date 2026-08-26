@@ -38,8 +38,8 @@ Zwróć WYŁĄCZNIE poprawny obiekt JSON w formacie:
           responseMimeType: "application/json",
           temperature: 0.2,
           thinkingConfig: {
-            thinkingBudget: 0
-          }
+    mode: "OFF"
+  }
         }
       })
     });

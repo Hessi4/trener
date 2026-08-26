@@ -46,8 +46,8 @@ Zwróć TYLKO kod JSON w postaci tablicy obiektów wg schematu:
           responseMimeType: "application/json",
           temperature: 0.3,
           thinkingConfig: {
-            thinkingBudget: 0
-          }
+    mode: "OFF"
+  }
         }
       })
     });
