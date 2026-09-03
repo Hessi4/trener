@@ -113,6 +113,8 @@ export default function ChatAssistant({ onPlanUpdated, onPosilekAdded }: ChatAss
       // Akcja: dodanie posiłku
       if (data.typAkcji === 'DODAJ_POSILEK' && data.nowyPosilek) {
         const meal = {
+          id: Date.now(),
+          user_id: user ? user.id : 'anonim',
           nazwa: data.nowyPosilek.nazwa,
           kalorie: Number(data.nowyPosilek.kalorie) || 0,
           bialko: Number(data.nowyPosilek.bialko) || 0,
@@ -122,7 +124,7 @@ export default function ChatAssistant({ onPlanUpdated, onPosilekAdded }: ChatAss
         };
 
         if (user) {
-          await supabase.from('posilki').insert({ ...meal, user_id: user.id });
+          await supabase.from('posilki').insert([meal]);
         }
         
         const zaktualizowane = [...zapisanePosilki, meal];

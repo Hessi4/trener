@@ -7,6 +7,7 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/app/lib/supabase';
+import ChatAssistant from '@/app/components/ChatAssistant';
 
 export default function PulpitGłówny() {
   const router = useRouter();
@@ -755,6 +756,12 @@ export default function PulpitGłówny() {
           )}
         </div>
       </div>
+
+      {/* ASYSTENT TRENERA AI */}
+      <ChatAssistant 
+        onPlanUpdated={(nowyPlan) => setPlan(nowyPlan)}
+        onPosilekAdded={(nowyPosilek) => setPosilki((prev) => [...prev, nowyPosilek])}
+      />
     </div>
   );
 }
