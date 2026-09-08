@@ -31,7 +31,6 @@ export default function EdytorPlanuPage() {
         const { data: { user } } = await supabase.auth.getUser();
 
         if (user) {
-          // 1. Pobranie planu przypisanego bezpośrednio do konta
           const { data: dbData } = await supabase
             .from('plany')
             .select('dane_planu')
@@ -44,7 +43,6 @@ export default function EdytorPlanuPage() {
           }
         }
 
-        // 2. Fallback do pamięci lokalnej
         const local = localStorage.getItem('wygenerowany_plan_ai');
         if (local) {
           setPlan(JSON.parse(local));
@@ -163,9 +161,9 @@ export default function EdytorPlanuPage() {
 
     setLadujeAi(true);
     try {
-      const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
+      const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY || process.env.GEMINI_API_KEY;
       if (!apiKey) {
-        throw new Error("Brak klucza API w pliku .env (wymagane NEXT_PUBLIC_GEMINI_API_KEY).");
+        throw new Error("Brak klucza API (wymagane NEXT_PUBLIC_GEMINI_API_KEY).");
       }
 
       const promptSystemowy = `
@@ -177,7 +175,7 @@ Zwróć WYŁĄCZNIE poprawną tablicę JSON w formacie obiektów:
 ]
 `;
 
-      const url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=' + apiKey;
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
 
       const response = await fetch(url, {
         method: 'POST',
@@ -201,7 +199,13 @@ Zwróć WYŁĄCZNIE poprawną tablicę JSON w formacie obiektów:
         throw new Error(data.error?.message || "Błąd komunikacji z API Google.");
       }
 
-      const jsonString = data.candidates?.[0]?.content?.parts?.[0]?.text;
+      let jsonString = data.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (jsonString.includes('```json')) {
+        jsonString = jsonString.split('```json')[1].split('```')[0].trim();
+      } else if (jsonString.includes('```')) {
+        jsonString = jsonString.split('```')[1].split('```')[0].trim();
+      }
+
       const wygenerowaneCwiczenia = JSON.parse(jsonString);
 
       const dni = [...plan.treningiTygodnia];
@@ -227,52 +231,52 @@ Zwróć WYŁĄCZNIE poprawną tablicę JSON w formacie obiektów:
   const aktualnyDzien = plan.treningiTygodnia[wybranyIdx];
 
   return (
-    <div className="max-w-2xl mx-auto p-6 text-white min-h-screen bg-zinc-950 space-y-6 pb-16">
+    <div className="w-full max-w-2xl mx-auto px-4 py-6 text-white min-h-screen bg-zinc-950 space-y-6 pb-24 overflow-x-hidden">
       {/* NAGŁÓWEK */}
-      <div className="flex justify-between items-center bg-zinc-900 border border-zinc-800 p-5 rounded-2xl shadow-xl">
-        <div>
-          <h1 className="text-xl font-bold text-emerald-400">Edytor Własnego Planu</h1>
-          <p className="text-xs text-zinc-400">Modyfikuj, edytuj i dopasowuj plan do siebie</p>
+      <div className="flex justify-between items-center bg-zinc-900 border border-zinc-800 p-4 sm:p-5 rounded-2xl shadow-xl flex-wrap gap-3">
+        <div className="min-w-0 flex-1">
+          <h1 className="text-lg sm:text-xl font-bold text-emerald-400 truncate">Edytor Własnego Planu</h1>
+          <p className="text-[11px] sm:text-xs text-zinc-400">Modyfikuj i dopasowuj plan do siebie</p>
         </div>
-        <Link className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold px-4 py-2.5 rounded-xl transition shadow" href="/">
-          ← Powrót do Pulpitu
+        <Link className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold px-3.5 py-2 rounded-xl transition shadow whitespace-nowrap" href="/">
+          ← Pulpit
         </Link>
       </div>
 
       {/* DODAJ NOWY DZIEŃ */}
-      <form onSubmit={dodajDzien} className="bg-zinc-900 border border-zinc-800 p-5 rounded-2xl shadow-xl space-y-3">
-        <h2 className="text-sm font-bold text-white uppercase tracking-wider">Dodaj nowy dzień do planu</h2>
-        <div className="grid grid-cols-3 gap-2">
+      <form onSubmit={dodajDzien} className="bg-zinc-900 border border-zinc-800 p-4 sm:p-5 rounded-2xl shadow-xl space-y-3">
+        <h2 className="text-xs font-bold text-white uppercase tracking-wider">Dodaj nowy dzień do planu</h2>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
           <input 
             type="text" value={nowyDzienDzienTygodnia} onChange={(e) => setNowyDzienDzienTygodnia(e.target.value)}
-            placeholder="Dzień (np. Wtorek)" className="bg-zinc-800 border border-zinc-700 rounded-lg p-2.5 text-xs text-white" required
+            placeholder="Dzień (np. Wtorek)" className="w-full bg-zinc-800 border border-zinc-700 rounded-lg p-2.5 text-xs text-white" required
           />
           <input 
             type="text" value={nowyDzienTytul} onChange={(e) => setNowyDzienTytul(e.target.value)}
-            placeholder="Tytuł" className="bg-zinc-800 border border-zinc-700 rounded-lg p-2.5 text-xs text-white" required
+            placeholder="Tytuł treningu" className="w-full bg-zinc-800 border border-zinc-700 rounded-lg p-2.5 text-xs text-white" required
           />
           <select 
             value={nowyDzienTyp} onChange={(e) => setNowyDzienTyp(e.target.value)}
-            className="bg-zinc-800 border border-zinc-700 rounded-lg p-2.5 text-xs text-white"
+            className="w-full bg-zinc-800 border border-zinc-700 rounded-lg p-2.5 text-xs text-white"
           >
             <option value="Siłownia">Siłownia</option>
             <option value="Basen">Basen</option>
             <option value="Cardio">Cardio / Rower</option>
           </select>
         </div>
-        <button type="submit" className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 rounded-xl text-xs transition">
+        <button type="submit" className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2.5 rounded-xl text-xs transition shadow">
           + Utwórz dzień treningowy
         </button>
       </form>
 
       {/* LISTA DNI */}
       {plan.treningiTygodnia.length > 0 && (
-        <div className="bg-zinc-900 border border-zinc-800 p-5 rounded-2xl shadow-xl space-y-4">
-          <h2 className="text-sm font-bold text-white uppercase tracking-wider">Wybierz dzień do edycji:</h2>
+        <div className="bg-zinc-900 border border-zinc-800 p-4 sm:p-5 rounded-2xl shadow-xl space-y-4">
+          <h2 className="text-xs font-bold text-white uppercase tracking-wider">Wybierz dzień do edycji:</h2>
           
-          <div className="flex gap-2 overflow-x-auto pb-2">
+          <div className="flex gap-2 overflow-x-auto pb-2 w-full no-scrollbar">
             {plan.treningiTygodnia.map((d: any, idx: number) => (
-              <div key={idx} className="flex items-center gap-1">
+              <div key={idx} className="flex items-center gap-1 shrink-0">
                 <button
                   type="button"
                   onClick={() => { setWybranyIdx(idx); setEdytowaneCwiczenieIdx(null); setNowaNazwaCwiczenia(''); }}
@@ -280,34 +284,36 @@ Zwróć WYŁĄCZNIE poprawną tablicę JSON w formacie obiektów:
                 >
                   {d.dzienTygodnia}: {d.tytul} ({d.typ})
                 </button>
-                <button type="button" onClick={() => usunDzien(idx)} className="text-zinc-500 hover:text-red-400 text-xs px-1">✕</button>
+                <button type="button" onClick={() => usunDzien(idx)} className="text-zinc-500 hover:text-red-400 text-xs px-1" title="Usuń dzień">✕</button>
               </div>
             ))}
           </div>
 
           {/* EDYCJA WYBRANEGO DNIA */}
           {aktualnyDzien && (
-            <div className="bg-zinc-950 p-4 rounded-xl border border-zinc-800 space-y-4">
-              <div className="flex justify-between items-center flex-wrap gap-3">
-                <div>
-                  <h3 className="font-bold text-white text-sm">Edytujesz: <span className="text-emerald-400">{aktualnyDzien.dzienTygodnia} - {aktualnyDzien.tytul}</span></h3>
-                  <p className="text-xs text-zinc-400">Typ: <b>{aktualnyDzien.typ}</b></p>
+            <div className="bg-zinc-950 p-3 sm:p-4 rounded-xl border border-zinc-800 space-y-4">
+              <div className="flex justify-between items-center flex-wrap gap-2">
+                <div className="min-w-0">
+                  <h3 className="font-bold text-white text-xs sm:text-sm truncate">
+                    Edytujesz: <span className="text-emerald-400">{aktualnyDzien.dzienTygodnia} - {aktualnyDzien.tytul}</span>
+                  </h3>
+                  <p className="text-[11px] text-zinc-400">Typ: <b>{aktualnyDzien.typ}</b></p>
                 </div>
                 <button 
                   type="button"
                   onClick={generujDzienAIBezposrednio}
                   disabled={ladujeAi}
-                  className="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold px-4 py-2 rounded-xl transition shadow flex items-center gap-1 disabled:opacity-50"
+                  className="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold px-3 py-2 rounded-xl transition shadow flex items-center gap-1 disabled:opacity-50"
                 >
-                  {ladujeAi ? "🤖 AI układa plan..." : "🤖 Wygeneruj plan AI dla tego dnia"}
+                  {ladujeAi ? "⏳ Układam..." : "🤖 Plan AI dla tego dnia"}
                 </button>
               </div>
 
-              {/* Formularz dodawania / edycji ćwiczenia */}
+              {/* Formularz ćwiczenia */}
               <form onSubmit={zapiszCwiczenie} className="space-y-3 bg-zinc-900 p-3 rounded-lg border border-zinc-800">
                 <div className="flex justify-between items-center">
                   <p className="text-xs font-medium text-zinc-300">
-                    {edytowaneCwiczenieIdx !== null ? "✏️ Edytujesz wybrane ćwiczenie:" : "➕ Dodaj nowe ćwiczenie:"}
+                    {edytowaneCwiczenieIdx !== null ? "✏️ Edytujesz ćwiczenie:" : "➕ Dodaj ćwiczenie:"}
                   </p>
                   {edytowaneCwiczenieIdx !== null && (
                     <button 
@@ -315,18 +321,18 @@ Zwróć WYŁĄCZNIE poprawną tablicę JSON w formacie obiektów:
                       onClick={() => { setEdytowaneCwiczenieIdx(null); setNowaNazwaCwiczenia(''); setNowyOpisSerii('3x10'); }}
                       className="text-[10px] text-zinc-400 hover:text-white underline"
                     >
-                      Anuluj edycję
+                      Anuluj
                     </button>
                   )}
                 </div>
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                   <input 
                     type="text" value={nowaNazwaCwiczenia} onChange={(e) => setNowaNazwaCwiczenia(e.target.value)}
-                    placeholder="Nazwa" className="col-span-2 bg-zinc-800 border border-zinc-700 rounded-lg p-2 text-xs text-white" required
+                    placeholder="Nazwa ćwiczenia" className="sm:col-span-2 w-full bg-zinc-800 border border-zinc-700 rounded-lg p-2 text-xs text-white" required
                   />
                   <input 
                     type="text" value={nowyOpisSerii} onChange={(e) => setNowyOpisSerii(e.target.value)}
-                    placeholder="Plan (np. 3x10)" className="bg-zinc-800 border border-zinc-700 rounded-lg p-2 text-xs text-white" required
+                    placeholder="Plan (np. 3x10 / 100m)" className="w-full bg-zinc-800 border border-zinc-700 rounded-lg p-2 text-xs text-white" required
                   />
                 </div>
                 <button type="submit" className={`w-full font-bold py-2 rounded-lg text-xs transition ${edytowaneCwiczenieIdx !== null ? 'bg-amber-600 hover:bg-amber-500 text-white' : 'bg-zinc-800 hover:bg-zinc-700 text-zinc-200'}`}>
@@ -340,25 +346,25 @@ Zwróć WYŁĄCZNIE poprawną tablicę JSON w formacie obiektów:
                   <p className="text-zinc-500 text-xs text-center py-2">Brak pozycji w tym dniu.</p>
                 ) : (
                   aktualnyDzien.cwiczeniaIZadania.map((cw: any, cIdx: number) => (
-                    <div key={cIdx} className="bg-zinc-900 border border-zinc-800 p-3 rounded-xl flex justify-between items-center text-xs">
-                      <div>
-                        <p className="font-bold text-white">{cw.nazwa}</p>
+                    <div key={cIdx} className="bg-zinc-900 border border-zinc-800 p-2.5 sm:p-3 rounded-xl flex justify-between items-center text-xs gap-2">
+                      <div className="min-w-0 flex-1">
+                        <p className="font-bold text-white truncate">{cw.nazwa}</p>
                         <p className="text-[10px] text-zinc-400">Zalecenie: {cw.opisSerii}</p>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-1.5 shrink-0">
                         <button 
                           type="button"
                           onClick={() => rozpocznijEdycje(cIdx)} 
-                          className="bg-zinc-800 hover:bg-zinc-700 text-emerald-400 font-medium px-2.5 py-1 rounded-lg transition"
+                          className="bg-zinc-800 hover:bg-zinc-700 text-emerald-400 font-medium px-2.5 py-1 rounded-lg transition text-[11px]"
                         >
                           Edytuj
                         </button>
                         <button 
                           type="button"
                           onClick={() => usunCwiczenie(cIdx)} 
-                          className="text-zinc-500 hover:text-red-400 font-bold px-2 py-1 transition"
+                          className="text-zinc-500 hover:text-red-400 font-bold px-2 py-1 transition text-xs"
                         >
-                          Usuń
+                          ✕
                         </button>
                       </div>
                     </div>
