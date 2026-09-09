@@ -11,11 +11,7 @@ import {
   CelGlowny, 
   SprzetGarazowy, 
   StylPlywacki, 
-  AkcesoriaPlywackie,
   PoziomPlywania,
-  Plec,
-  PoziomAktywnosci,
-  DzienHarmonogramu
 } from '@/app/typy/uzytkownik';
 import { 
   Flame, Activity, Trophy, HeartPulse, 
@@ -73,22 +69,21 @@ export default function AnkietaStartowa() {
   const [ladowanie, setLadowanie] = useState<boolean>(false);
   const [zamontowano, setZamontowano] = useState<boolean>(false);
   const [userId, setUserId] = useState<string | null>(null);
-  
-  // Własne pole preferencji (kreator swobodny dla AI)
-  const [wlasnePreferencje, setWlasnePreferencje] = useState<string>(
-    '118 kg, basen 2x w tyg po 40 min tempo 2:00, siłownia 2x FBW bez przeciążania stawów, spacery'
-  );
+
+  // Własne wytyczne dla AI (czyste pole, brak przykładowych tekstów)
+  const [wlasnePreferencje, setWlasnePreferencje] = useState<string>('');
 
   const [wygenerowanyPlan, setWygenerowanyPlan] = useState<any>(null);
 
+  // Czysty stan danych (brak sztywnych wag, obwodów i sprzętu)
   const [dane, setDane] = useState<ProfilUzytkownikaRozszerzony>({
     plec: 'mezczyzna',
     poziomAktywnosci: 'umiarkowana',
     celGlowny: 'redukcja_tluszczu',
-    wiek: 23,
-    wzrostCm: 180,
-    wagaAktualnaKg: 118,
-    wagaDocelowaKg: 95,
+    wiek: '' as any,
+    wzrostCm: '' as any,
+    wagaAktualnaKg: '' as any,
+    wagaDocelowaKg: '' as any,
     pomiary: { 
       klatkaCm: 0, 
       pasTaliaCm: 0, 
@@ -100,23 +95,17 @@ export default function AnkietaStartowa() {
       przedramieCm: 0
     },
     zdrowieIKontuzje: '',
-    sprzet: [
-      'hantle_regulowane', 
-      'gryf_prosty_zwykly', 
-      'lawka_regulowana_katy', 
-      'wyciag_gorny', 
-      'drazek_do_podciagania',
-    ],
-    szczegolySilowni: { maksObciazenieGryfKg: 90, maksHantleKg: 24, skosUjemnyLawka: false },
+    sprzet: [],
+    szczegolySilowni: { maksObciazenieGryfKg: 0, maksHantleKg: 0, skosUjemnyLawka: false },
     basen: {
       poziom: 'sredniozaawansowany',
-      znaneStyle: ['kraul'],
+      znaneStyle: [],
       akcesoria: [],
       czasNajszybsze50mKraul: '',
-      tempo100mKraulKomfort: '2:00',
+      tempo100mKraulKomfort: '',
       czasNa400mKraul: '',
-      sredniaObjetoscSesjiMetry: 1200,
-      maksDystansCiaglyMetry: 1000,
+      sredniaObjetoscSesjiMetry: 0,
+      maksDystansCiaglyMetry: 0,
       dlugoscBasenuMetry: 25,
       umiejetnoscNawrotuKozilkowego: false,
       skupienie: 'tempo_interwaly',
@@ -192,7 +181,7 @@ export default function AnkietaStartowa() {
 
       const dzisiejszaData = new Date().toISOString().split('T')[0];
       const zmapowanePomiary = [
-        { id: Date.now() + 1, user_id: user.id, kategoria: 'Masa ciała', wartosc: dane.wagaAktualnaKg || 0, data: dzisiejszaData },
+        { id: Date.now() + 1, user_id: user.id, kategoria: 'Masa ciała', wartosc: Number(dane.wagaAktualnaKg) || 0, data: dzisiejszaData },
         { id: Date.now() + 2, user_id: user.id, kategoria: 'Klatka piersiowa', wartosc: dane.pomiary.klatkaCm || 0, data: dzisiejszaData },
         { id: Date.now() + 3, user_id: user.id, kategoria: 'Talia', wartosc: dane.pomiary.pasTaliaCm || 0, data: dzisiejszaData },
         { id: Date.now() + 4, user_id: user.id, kategoria: 'Biodra', wartosc: dane.pomiary.biodraCm || 0, data: dzisiejszaData },
@@ -206,7 +195,6 @@ export default function AnkietaStartowa() {
         await supabase.from('pomiary').insert(zmapowanePomiary);
       }
 
-      // Dołączamy preferencje tekstowe do promptu API
       const payload = {
         ...dane,
         wlasnePreferencje,
@@ -277,10 +265,10 @@ export default function AnkietaStartowa() {
             {krok <= 5 ? `Krok ${krok} z 5` : 'Krok 6: Sprawdź i przestaw plan'}
           </span>
           <span className="text-[10px] text-slate-400 font-medium text-right">
-            {krok === 1 && 'Podstawy i Własne Wytyczne'}
-            {krok === 2 && 'Pomiary ciała'}
-            {krok === 3 && 'Zdrowie i Basen'}
-            {krok === 4 && 'Inwentarz Siłowni'}
+            {krok === 1 && 'Podstawy i Parametry'}
+            {krok === 2 && 'Zdrowie i Basen'}
+            {krok === 3 && 'Inwentarz Siłowni'}
+            {krok === 4 && 'Pomiary & Własne Wytyczne'}
             {krok === 5 && 'Harmonogram Treningowy'}
             {krok === 6 && 'Dopasowanie dni i ćwiczeń'}
           </span>
@@ -289,28 +277,10 @@ export default function AnkietaStartowa() {
           <div className="bg-emerald-500 h-full transition-all duration-300 rounded-full" style={{ width: `${Math.min(100, (krok / 5) * 100)}%` }} />
         </div>
 
-        {/* KROK 1 */}
+        {/* KROK 1: PODSTAWY */}
         {krok === 1 && (
           <div className="space-y-4">
             <h1 className="text-xl font-bold">Podstawy profilu</h1>
-
-            {/* POLE PREFERENCJI DLA AI */}
-            <div className="bg-emerald-950/30 border border-emerald-500/40 rounded-2xl p-4 space-y-2">
-              <div className="flex items-center gap-1.5 text-emerald-400 text-xs font-bold">
-                <Sparkles className="w-4 h-4" />
-                <span>Twoje wytyczne dla trenera AI:</span>
-              </div>
-              <p className="text-[11px] text-slate-300">
-                Wpisz tu dokładnie, jak chcesz trenować (np. ile razy basen, jakie tempo, styl FBW, spacery, ochrona stawów):
-              </p>
-              <textarea
-                rows={3}
-                value={wlasnePreferencje}
-                onChange={(e) => setWlasnePreferencje(e.target.value)}
-                placeholder="np. 118 kg, basen 2x w tyg po 40 min tempo 2:00, siłownia 2x FBW bez przeciążania stawów, spacery"
-                className="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-xs text-white focus:outline-none focus:border-emerald-400 leading-relaxed font-medium"
-              />
-            </div>
             
             <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4">
               <label className="text-xs text-slate-400 block mb-2 font-medium">Płeć:</label>
@@ -384,90 +354,61 @@ export default function AnkietaStartowa() {
             <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 grid grid-cols-2 gap-3">
               <div>
                 <label className="text-[11px] text-slate-400">Waga obecna (kg)</label>
-                <input type="number" value={dane.wagaAktualnaKg || ''} onChange={(e) => setDane({ ...dane, wagaAktualnaKg: Number(e.target.value) })} className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-1.5 text-white text-xs mt-1" />
+                <input 
+                  type="number" 
+                  placeholder="np. 80"
+                  value={dane.wagaAktualnaKg || ''} 
+                  onChange={(e) => setDane({ ...dane, wagaAktualnaKg: e.target.value ? Number(e.target.value) : '' as any })} 
+                  className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-1.5 text-white text-xs mt-1" 
+                />
               </div>
               <div>
-                <label className="text-[11px] text-slate-400">Waga cel (kg)</label>
-                <input type="number" value={dane.wagaDocelowaKg || ''} onChange={(e) => setDane({ ...dane, wagaDocelowaKg: Number(e.target.value) })} className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-1.5 text-white text-xs mt-1" />
+                <label className="text-[11px] text-slate-400">Waga docelowa (kg)</label>
+                <input 
+                  type="number" 
+                  placeholder="np. 75"
+                  value={dane.wagaDocelowaKg || ''} 
+                  onChange={(e) => setDane({ ...dane, wagaDocelowaKg: e.target.value ? Number(e.target.value) : '' as any })} 
+                  className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-1.5 text-white text-xs mt-1" 
+                />
               </div>
               <div>
                 <label className="text-[11px] text-slate-400">Wiek (lata)</label>
-                <input type="number" value={dane.wiek || ''} onChange={(e) => setDane({ ...dane, wiek: Number(e.target.value) })} className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-1.5 text-white text-xs mt-1" />
+                <input 
+                  type="number" 
+                  placeholder="np. 25"
+                  value={dane.wiek || ''} 
+                  onChange={(e) => setDane({ ...dane, wiek: e.target.value ? Number(e.target.value) : '' as any })} 
+                  className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-1.5 text-white text-xs mt-1" 
+                />
               </div>
               <div>
                 <label className="text-[11px] text-slate-400">Wzrost (cm)</label>
-                <input type="number" value={dane.wzrostCm || ''} onChange={(e) => setDane({ ...dane, wzrostCm: Number(e.target.value) })} className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-1.5 text-white text-xs mt-1" />
+                <input 
+                  type="number" 
+                  placeholder="np. 180"
+                  value={dane.wzrostCm || ''} 
+                  onChange={(e) => setDane({ ...dane, wzrostCm: e.target.value ? Number(e.target.value) : '' as any })} 
+                  className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-1.5 text-white text-xs mt-1" 
+                />
               </div>
             </div>
           </div>
         )}
 
-        {/* KROK 2 */}
+        {/* KROK 2: ZDROWIE I BASEN */}
         {krok === 2 && (
-          <div className="space-y-4">
-            <div className="flex justify-between items-center">
-              <div>
-                <h1 className="text-xl font-bold">Pomiary ciała (cm)</h1>
-                <p className="text-xs text-slate-400">Możesz wpisać teraz lub pominąć i uzupełnić później.</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setKrok(3)}
-                className="text-xs bg-slate-800 hover:bg-slate-700 border border-slate-700 text-emerald-400 px-3 py-1.5 rounded-xl font-medium transition"
-              >
-                Pomiń ten krok →
-              </button>
-            </div>
-
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5">
-              <div className="flex items-center gap-1.5 mb-4 text-emerald-400 text-sm font-semibold">
-                <Ruler className="w-4 h-4" />
-                <span>Dokładne obwody</span>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-[10px] text-slate-400">Klatka piersiowa</label>
-                  <input type="number" placeholder="opcjonalnie" value={dane.pomiary.klatkaCm || ''} onChange={(e) => setDane({ ...dane, pomiary: { ...dane.pomiary, klatkaCm: Number(e.target.value) } })} className="w-full bg-slate-800 border border-slate-700 rounded-xl px-2.5 py-1.5 text-xs text-white" />
-                </div>
-                <div>
-                  <label className="text-[10px] text-slate-400">Pas / Talia (pępek)</label>
-                  <input type="number" placeholder="opcjonalnie" value={dane.pomiary.pasTaliaCm || ''} onChange={(e) => setDane({ ...dane, pomiary: { ...dane.pomiary, pasTaliaCm: Number(e.target.value) } })} className="w-full bg-slate-800 border border-slate-700 rounded-xl px-2.5 py-1.5 text-xs text-white" />
-                </div>
-                <div>
-                  <label className="text-[10px] text-slate-400">Biodra / Pośladki</label>
-                  <input type="number" placeholder="opcjonalnie" value={dane.pomiary.biodraCm || ''} onChange={(e) => setDane({ ...dane, pomiary: { ...dane.pomiary, biodraCm: Number(e.target.value) } })} className="w-full bg-slate-800 border border-slate-700 rounded-xl px-2.5 py-1.5 text-xs text-white" />
-                </div>
-                <div>
-                  <label className="text-[10px] text-slate-400">Ramię / Biceps</label>
-                  <input type="number" placeholder="opcjonalnie" value={dane.pomiary.bicepsCm || ''} onChange={(e) => setDane({ ...dane, pomiary: { ...dane.pomiary, bicepsCm: Number(e.target.value) } })} className="w-full bg-slate-800 border border-slate-700 rounded-xl px-2.5 py-1.5 text-xs text-white" />
-                </div>
-                <div>
-                  <label className="text-[10px] text-slate-400">Udo</label>
-                  <input type="number" placeholder="opcjonalnie" value={dane.pomiary.udoCm || ''} onChange={(e) => setDane({ ...dane, pomiary: { ...dane.pomiary, udoCm: Number(e.target.value) } })} className="w-full bg-slate-800 border border-slate-700 rounded-xl px-2.5 py-1.5 text-xs text-white" />
-                </div>
-                <div>
-                  <label className="text-[10px] text-slate-400">Łydka</label>
-                  <input type="number" placeholder="opcjonalnie" value={dane.pomiary.lydkaCm || ''} onChange={(e) => setDane({ ...dane, pomiary: { ...dane.pomiary, lydkaCm: Number(e.target.value) } })} className="w-full bg-slate-800 border border-slate-700 rounded-xl px-2.5 py-1.5 text-xs text-white" />
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* KROK 3 */}
-        {krok === 3 && (
           <div className="space-y-4">
             <h1 className="text-xl font-bold">Zdrowie i Basen</h1>
             
             <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-3">
               <div className="flex items-center gap-2 text-red-400 text-xs font-semibold">
                 <HeartPulse className="w-4 h-4" />
-                <span>Urazy, przebyte kontuzje, wrażliwe stawy (Ochrona stawów)</span>
+                <span>Urazy, wrażliwe stawy i ograniczenia</span>
               </div>
               <textarea
                 rows={3}
-                placeholder="np. Duża waga, ochrona kolan i kręgosłupa, bez ciężkich przysiadów i skoków..."
+                placeholder="Wpisz jeśli masz urazy, ból stawów, kolan czy kręgosłupa..."
                 value={dane.zdrowieIKontuzje}
                 onChange={(e) => setDane({ ...dane, zdrowieIKontuzje: e.target.value })}
                 className="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-xs text-white focus:border-red-400"
@@ -514,25 +455,37 @@ export default function AnkietaStartowa() {
               <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-800">
                 <div>
                   <label className="text-[10px] text-slate-400">Tempo komfort (100m kraul)</label>
-                  <input type="text" value={dane.basen.tempo100mKraulKomfort} onChange={(e) => setDane({ ...dane, basen: { ...dane.basen, tempo100mKraulKomfort: e.target.value } })} className="w-full bg-slate-800 border border-slate-700 rounded-xl px-2.5 py-1.5 text-xs mt-1" />
+                  <input 
+                    type="text" 
+                    placeholder="np. 2:00"
+                    value={dane.basen.tempo100mKraulKomfort} 
+                    onChange={(e) => setDane({ ...dane, basen: { ...dane.basen, tempo100mKraulKomfort: e.target.value } })} 
+                    className="w-full bg-slate-800 border border-slate-700 rounded-xl px-2.5 py-1.5 text-xs mt-1" 
+                  />
                 </div>
                 <div>
                   <label className="text-[10px] text-slate-400">Średnia objętość sesji (m)</label>
-                  <input type="number" value={dane.basen.sredniaObjetoscSesjiMetry} onChange={(e) => setDane({ ...dane, basen: { ...dane.basen, sredniaObjetoscSesjiMetry: Number(e.target.value) } })} className="w-full bg-slate-800 border border-slate-700 rounded-xl px-2.5 py-1.5 text-xs mt-1" />
+                  <input 
+                    type="number" 
+                    placeholder="np. 1000"
+                    value={dane.basen.sredniaObjetoscSesjiMetry || ''} 
+                    onChange={(e) => setDane({ ...dane, basen: { ...dane.basen, sredniaObjetoscSesjiMetry: Number(e.target.value) } })} 
+                    className="w-full bg-slate-800 border border-slate-700 rounded-xl px-2.5 py-1.5 text-xs mt-1" 
+                  />
                 </div>
               </div>
             </div>
           </div>
         )}
 
-        {/* KROK 4 */}
-        {krok === 4 && (
+        {/* KROK 3: INWENTARZ SIŁOWNI */}
+        {krok === 3 && (
           <div className="space-y-4">
             <h1 className="text-xl font-bold">Dostępny inwentarz</h1>
-            <p className="text-xs text-slate-400">Zaznacz sprzęt na siłowni, aby AI dobrało ćwiczenia nieprzeciążające stawów.</p>
+            <p className="text-xs text-slate-400">Zaznacz sprzęt, do którego masz dostęp (możesz pominąć, jeśli brak):</p>
 
             <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-3">
-              <div className="grid grid-cols-1 gap-1.5 max-h-60 overflow-y-auto pr-1">
+              <div className="grid grid-cols-1 gap-1.5 max-h-64 overflow-y-auto pr-1">
                 {SPRZET_SILOWNIA.map((sprzet) => {
                   const zaznaczony = dane.sprzet.includes(sprzet.id);
                   return (
@@ -554,14 +507,115 @@ export default function AnkietaStartowa() {
           </div>
         )}
 
-        {/* KROK 5 */}
+        {/* KROK 4 (PO KROKU 3): WŁASNE WYTYCZNE ORAZ POMIARY */}
+        {krok === 4 && (
+          <div className="space-y-4">
+            <div>
+              <h1 className="text-xl font-bold text-emerald-400 flex items-center gap-2">
+                <Sparkles className="w-5 h-5 text-emerald-400" /> Własne wytyczne & Pomiary
+              </h1>
+              <p className="text-xs text-slate-400">Wpisz wytyczne słownie dla AI oraz podaj ewentualne obwody.</p>
+            </div>
+
+            {/* SEKCJA GŁÓWNYCH WYTYCZNYCH DLA AI */}
+            <div className="bg-emerald-950/20 border border-emerald-500/40 rounded-2xl p-4 space-y-2">
+              <span className="text-xs font-bold text-emerald-400 block">Opisz swoje preferencje treningowe dla AI:</span>
+              <p className="text-[11px] text-slate-300 leading-relaxed">
+                Napisz własnymi słowami: ile razy w tygodniu chcesz basen, ile siłownię, jaki styl treningu preferujesz, czy chcesz spacery, na co uważać:
+              </p>
+              <textarea
+                rows={4}
+                value={wlasnePreferencje}
+                onChange={(e) => setWlasnePreferencje(e.target.value)}
+                placeholder="np. basen 2x w tyg po 40 min tempo 2:00, siłownia 2x FBW bez przeciążania stawów, spacery..."
+                className="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-xs text-white focus:outline-none focus:border-emerald-400 leading-relaxed font-medium"
+              />
+            </div>
+
+            {/* SEKCJA POMIARÓW CIAŁA */}
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5 text-emerald-400 text-sm font-semibold">
+                  <Ruler className="w-4 h-4" />
+                  <span>Obwody ciała (cm) - Opcjonalne</span>
+                </div>
+              </div>
+              <p className="text-[10px] text-slate-400">Pomiary są dobrowolne – możesz je pominąć i uzupełnić w zakładce Pomiary.</p>
+
+              <div className="grid grid-cols-2 gap-3 pt-1">
+                <div>
+                  <label className="text-[10px] text-slate-400">Klatka piersiowa</label>
+                  <input 
+                    type="number" 
+                    placeholder="cm" 
+                    value={dane.pomiary.klatkaCm || ''} 
+                    onChange={(e) => setDane({ ...dane, pomiary: { ...dane.pomiary, klatkaCm: Number(e.target.value) } })} 
+                    className="w-full bg-slate-800 border border-slate-700 rounded-xl px-2.5 py-1.5 text-xs text-white" 
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] text-slate-400">Pas / Talia (pępek)</label>
+                  <input 
+                    type="number" 
+                    placeholder="cm" 
+                    value={dane.pomiary.pasTaliaCm || ''} 
+                    onChange={(e) => setDane({ ...dane, pomiary: { ...dane.pomiary, pasTaliaCm: Number(e.target.value) } })} 
+                    className="w-full bg-slate-800 border border-slate-700 rounded-xl px-2.5 py-1.5 text-xs text-white" 
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] text-slate-400">Biodra / Pośladki</label>
+                  <input 
+                    type="number" 
+                    placeholder="cm" 
+                    value={dane.pomiary.biodraCm || ''} 
+                    onChange={(e) => setDane({ ...dane, pomiary: { ...dane.pomiary, biodraCm: Number(e.target.value) } })} 
+                    className="w-full bg-slate-800 border border-slate-700 rounded-xl px-2.5 py-1.5 text-xs text-white" 
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] text-slate-400">Ramię / Biceps</label>
+                  <input 
+                    type="number" 
+                    placeholder="cm" 
+                    value={dane.pomiary.bicepsCm || ''} 
+                    onChange={(e) => setDane({ ...dane, pomiary: { ...dane.pomiary, bicepsCm: Number(e.target.value) } })} 
+                    className="w-full bg-slate-800 border border-slate-700 rounded-xl px-2.5 py-1.5 text-xs text-white" 
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] text-slate-400">Udo</label>
+                  <input 
+                    type="number" 
+                    placeholder="cm" 
+                    value={dane.pomiary.udoCm || ''} 
+                    onChange={(e) => setDane({ ...dane, pomiary: { ...dane.pomiary, udoCm: Number(e.target.value) } })} 
+                    className="w-full bg-slate-800 border border-slate-700 rounded-xl px-2.5 py-1.5 text-xs text-white" 
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] text-slate-400">Łydka</label>
+                  <input 
+                    type="number" 
+                    placeholder="cm" 
+                    value={dane.pomiary.lydkaCm || ''} 
+                    onChange={(e) => setDane({ ...dane, pomiary: { ...dane.pomiary, lydkaCm: Number(e.target.value) } })} 
+                    className="w-full bg-slate-800 border border-slate-700 rounded-xl px-2.5 py-1.5 text-xs text-white" 
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* KROK 5: HARMONOGRAM */}
         {krok === 5 && (
           <div className="space-y-4">
             <h1 className="text-xl font-bold flex items-center gap-2">
-              <Calendar className="text-emerald-400 w-6 h-6" /> Twój harmonogram
+              <Calendar className="text-emerald-400 w-6 h-6" /> Harmonogram tygodnia
             </h1>
             <p className="text-xs text-slate-400 mb-4">
-              Wybierz wstępne dni treningowe. Po wygenerowaniu będziesz mógł je jeszcze dowolnie przestawiać w Kroku 6.
+              Zaznacz wstępnie preferowane dni. Po ułożeniu planu przez AI będziesz mógł je jeszcze przestawiać.
             </p>
 
             <div className="space-y-2.5">
@@ -595,12 +649,12 @@ export default function AnkietaStartowa() {
           </div>
         )}
 
-        {/* KROK 6 */}
+        {/* KROK 6: PODGLĄD, PRZESTAWIANIE DNI I FINALNE ZATWIERDZENIE */}
         {krok === 6 && wygenerowanyPlan && (
           <div className="space-y-4">
             <div>
-              <h1 className="text-xl font-bold text-emerald-400">Dopasuj swój plan</h1>
-              <p className="text-xs text-slate-400">Możesz zmienić dzień tygodnia dla dowolnego treningu przed zatwierdzeniem.</p>
+              <h1 className="text-xl font-bold text-emerald-400">Dopasuj ułożony plan</h1>
+              <p className="text-xs text-slate-400">Możesz zmienić dzień tygodnia dla dowolnego treningu lub usunąć niechciane ćwiczenie.</p>
             </div>
 
             {wygenerowanyPlan.makroskladniki && (
@@ -676,7 +730,7 @@ export default function AnkietaStartowa() {
 
       </div>
 
-      {/* Nawigacja Dolna */}
+      {/* NAWIGACJA DOLNA */}
       <div className="flex items-center gap-3 pt-6">
         {krok > 1 && krok <= 5 && (
           <button
