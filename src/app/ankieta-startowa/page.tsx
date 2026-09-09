@@ -19,7 +19,7 @@ import {
 } from '@/app/typy/uzytkownik';
 import { 
   Flame, Activity, Trophy, HeartPulse, 
-  ArrowRight, ArrowLeft, CheckCircle2, Ruler, Loader2, Calendar
+  ArrowRight, ArrowLeft, CheckCircle2, Ruler, Loader2, Calendar, Trash2, Sparkles
 } from 'lucide-react';
 
 const CELE: { id: CelGlowny; tytul: string; opis: string; ikona: any }[] = [
@@ -29,20 +29,16 @@ const CELE: { id: CelGlowny; tytul: string; opis: string; ikona: any }[] = [
 ];
 
 const SPRZET_SILOWNIA: { id: SprzetGarazowy; nazwa: string; kat: string }[] = [
-  // Wolne ciężary
   { id: 'hantle_regulowane', nazwa: 'Hantle regulowane / zwykłe', kat: 'Wolne ciężary' },
   { id: 'kettlebells', nazwa: 'Kettlebells (Odważniki kulowe)', kat: 'Wolne ciężary' },
   { id: 'gryf_prosty_olimpijski', nazwa: 'Gryf olimpijski (50mm)', kat: 'Wolne ciężary' },
   { id: 'gryf_prosty_zwykly', nazwa: 'Gryf prosty (28/30mm)', kat: 'Wolne ciężary' },
   { id: 'gryf_lamany', nazwa: 'Gryf łamany (biceps/triceps)', kat: 'Wolne ciężary' },
-  // Stanowiska
   { id: 'lawka_regulowana_katy', nazwa: 'Ławka regulowana', kat: 'Stanowiska' },
   { id: 'stojaki_do_przysiadow', nazwa: 'Stojaki pod sztangę / klatka', kat: 'Stanowiska' },
   { id: 'maszyna_smitha', nazwa: 'Maszyna Smitha', kat: 'Stanowiska' },
-  // Masa ciała
   { id: 'drazek_do_podciagania', nazwa: 'Drążek do podciągania', kat: 'Masa ciała' },
   { id: 'porecze_dipsy', nazwa: 'Poręcze stacjonarne do dipsów', kat: 'Masa ciała' },
-  // Maszyny i wyciągi
   { id: 'wyciag_gorny', nazwa: 'Wyciąg górny (lat pulldown)', kat: 'Wyciągi' },
   { id: 'wyciag_dolny', nazwa: 'Wyciąg dolny (wiosłowanie)', kat: 'Wyciągi' },
   { id: 'wyciag_brama', nazwa: 'Brama (podwójny wyciąg)', kat: 'Wyciągi' },
@@ -52,27 +48,14 @@ const SPRZET_SILOWNIA: { id: SprzetGarazowy; nazwa: string; kat: string }[] = [
   { id: 'maszyna_nogi_czworoglowe', nazwa: 'Maszyna wyprosty nóg (czwórki)', kat: 'Maszyny' },
   { id: 'maszyna_nogi_dwuglowe', nazwa: 'Maszyna ugięcia nóg (dwójki)', kat: 'Maszyny' },
   { id: 'maszyna_lydki', nazwa: 'Wspięcia na łydki (maszyna)', kat: 'Maszyny' },
-  // Akcesoria wyciągu
   { id: 'uchwyt_sznur_triceps', nazwa: 'Uchwyt sznur / lina', kat: 'Akcesoria wyciągu' },
   { id: 'uchwyt_drazek_szeroki', nazwa: 'Drążek szeroki do wyciągu', kat: 'Akcesoria wyciągu' },
   { id: 'uchwyt_trojkat_wioslo', nazwa: 'Uchwyt trójkątny (wąski)', kat: 'Akcesoria wyciągu' },
-  // Dodatki
   { id: 'gumy_oporowe_powerband', nazwa: 'Gumy oporowe (Powerband)', kat: 'Akcesoria' },
   { id: 'pas_obciazeniowy', nazwa: 'Pas pod obciążenie', kat: 'Akcesoria' },
-  // Cardio
   { id: 'rowerek_stacjonarny', nazwa: 'Rowerek stacjonarny', kat: 'Cardio' },
   { id: 'bieznia', nazwa: 'Bieżnia', kat: 'Cardio' },
   { id: 'ergometr_wioslarski', nazwa: 'Ergometr Wioślarski', kat: 'Cardio' },
-];
-
-const AKCESORIA_BASEN: { id: AkcesoriaPlywackie; nazwa: string }[] = [
-  { id: 'deska', nazwa: 'Deska do pływania' },
-  { id: 'ósemka_pullbuoy', nazwa: 'Ósemka (Pullbuoy)' },
-  { id: 'pletwy_krotkie', nazwa: 'Płetwy krótkie (treningowe)' },
-  { id: 'lapki_duze', nazwa: 'Łapki duże (siłowe)' },
-  { id: 'lapki_male_techniczne', nazwa: 'Łapki małe (czucie wody)' },
-  { id: 'rurka_czolowa', nazwa: 'Rurka czołowa (snurkel)' },
-  { id: 'stoper_zegarek', nazwa: 'Zegarek / stoper do interwałów' },
 ];
 
 const STYLE_BASEN: { id: StylPlywacki; nazwa: string }[] = [
@@ -90,6 +73,13 @@ export default function AnkietaStartowa() {
   const [ladowanie, setLadowanie] = useState<boolean>(false);
   const [zamontowano, setZamontowano] = useState<boolean>(false);
   const [userId, setUserId] = useState<string | null>(null);
+  
+  // Własne pole preferencji (kreator swobodny dla AI)
+  const [wlasnePreferencje, setWlasnePreferencje] = useState<string>(
+    '118 kg, basen 2x w tyg po 40 min tempo 2:00, siłownia 2x FBW bez przeciążania stawów, spacery'
+  );
+
+  const [wygenerowanyPlan, setWygenerowanyPlan] = useState<any>(null);
 
   const [dane, setDane] = useState<ProfilUzytkownikaRozszerzony>({
     plec: 'mezczyzna',
@@ -97,17 +87,17 @@ export default function AnkietaStartowa() {
     celGlowny: 'redukcja_tluszczu',
     wiek: 23,
     wzrostCm: 180,
-    wagaAktualnaKg: 85,
-    wagaDocelowaKg: 78,
+    wagaAktualnaKg: 118,
+    wagaDocelowaKg: 95,
     pomiary: { 
-      klatkaCm: 104, 
-      pasTaliaCm: 88, 
-      biodraCm: 98, 
-      karkSzyjaCm: 39,
-      bicepsCm: 38, 
-      udoCm: 60,
-      lydkaCm: 38,
-      przedramieCm: 30
+      klatkaCm: 0, 
+      pasTaliaCm: 0, 
+      biodraCm: 0, 
+      karkSzyjaCm: 0,
+      bicepsCm: 0, 
+      udoCm: 0,
+      lydkaCm: 0,
+      przedramieCm: 0
     },
     zdrowieIKontuzje: '',
     sprzet: [
@@ -125,7 +115,7 @@ export default function AnkietaStartowa() {
       czasNajszybsze50mKraul: '',
       tempo100mKraulKomfort: '2:00',
       czasNa400mKraul: '',
-      sredniaObjetoscSesjiMetry: 1500,
+      sredniaObjetoscSesjiMetry: 1200,
       maksDystansCiaglyMetry: 1000,
       dlugoscBasenuMetry: 25,
       umiejetnoscNawrotuKozilkowego: false,
@@ -137,7 +127,6 @@ export default function AnkietaStartowa() {
     }))
   });
 
-  // Weryfikacja sesji użytkownika
   useEffect(() => {
     async function sprawdzSesje() {
       const { data: { user } } = await supabase.auth.getUser();
@@ -159,6 +148,9 @@ export default function AnkietaStartowa() {
             pomiary: { ...aktualne.pomiary, ...(pobraneDane.pomiary || {}) },
             basen: { ...aktualne.basen, ...(pobraneDane.basen || {}) }
           }));
+          if (pobraneDane.wlasnePreferencje) {
+            setWlasnePreferencje(pobraneDane.wlasnePreferencje);
+          }
         } catch (e) {
           console.error(e);
         }
@@ -169,9 +161,9 @@ export default function AnkietaStartowa() {
 
   useEffect(() => {
     if (zamontowano && userId) {
-      localStorage.setItem(`autosave_ankieta_${userId}`, JSON.stringify(dane));
+      localStorage.setItem(`autosave_ankieta_${userId}`, JSON.stringify({ ...dane, wlasnePreferencje }));
     }
-  }, [dane, zamontowano, userId]);
+  }, [dane, wlasnePreferencje, zamontowano, userId]);
 
   if (!zamontowano) {
     return <div className="min-h-screen bg-slate-950 flex items-center justify-center text-slate-500 text-sm">Weryfikacja profilu...</div>;
@@ -183,14 +175,13 @@ export default function AnkietaStartowa() {
 
   const ustawDzienHarmonogramu = (dzienTygodnia: string, rodzajTreningu: 'Siłownia' | 'Basen' | 'Cardio' | 'Wolne') => {
     const bezpiecznyHarmonogram = dane.harmonogram || DNI_TYGODNIA.map(d => ({ dzienTygodnia: d, rodzajTreningu: 'Wolne' }));
-    
     const noweDni = bezpiecznyHarmonogram.map(d => 
       d.dzienTygodnia === dzienTygodnia ? { ...d, rodzajTreningu } : d
     );
     setDane({ ...dane, harmonogram: noweDni });
   };
 
-  const zakonczAnkiete = async () => {
+  const generujPlan = async () => {
     setLadowanie(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -211,35 +202,29 @@ export default function AnkietaStartowa() {
         { id: Date.now() + 8, user_id: user.id, kategoria: 'Łydka', wartosc: dane.pomiary.lydkaCm || 0, data: dzisiejszaData }
       ].filter(p => p.wartosc > 0);
 
-      // Zapis pomiarów początkowych do bazy Supabase
       if (zmapowanePomiary.length > 0) {
         await supabase.from('pomiary').insert(zmapowanePomiary);
       }
 
-      // Generowanie planu przez backend Gemini API
+      // Dołączamy preferencje tekstowe do promptu API
+      const payload = {
+        ...dane,
+        wlasnePreferencje,
+        zdrowieIKontuzje: `${dane.zdrowieIKontuzje || ''} | Preferencje: ${wlasnePreferencje}`
+      };
+
       const res = await fetch('/api/asystent', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(dane),
+        body: JSON.stringify(payload),
       });
 
       const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'Nieznany błąd serwera');
 
-      if (!res.ok) {
-        throw new Error(json.error || 'Nieznany błąd serwera');
-      }
+      setWygenerowanyPlan(json);
+      setKrok(6);
 
-      localStorage.removeItem(`autosave_ankieta_${user.id}`);
-
-      // ZAPIS PLANU DO CHMURY SUPABASE DLA ZALOGOWANEGO UŻYTKOWNIKA GOOGLE
-      await supabase.from('plany').upsert({
-        user_id: user.id,
-        dane_planu: json,
-        zaktualizowano_at: new Date().toISOString()
-      });
-
-      router.push('/');
-      
     } catch (err: any) {
       console.error('Błąd ankiety:', err);
       alert(`Błąd: ${err.message}`);
@@ -248,32 +233,87 @@ export default function AnkietaStartowa() {
     }
   };
 
+  const zmienDzienWPlanie = (index: number, nowyDzien: string) => {
+    const kopia = { ...wygenerowanyPlan };
+    if (kopia.treningiTygodnia && kopia.treningiTygodnia[index]) {
+      kopia.treningiTygodnia[index].dzienTygodnia = nowyDzien;
+      setWygenerowanyPlan(kopia);
+    }
+  };
+
+  const usunCwiczenieZPlanu = (dzienIdx: number, cwIdx: number) => {
+    const kopia = { ...wygenerowanyPlan };
+    kopia.treningiTygodnia[dzienIdx].cwiczeniaIZadania.splice(cwIdx, 1);
+    setWygenerowanyPlan(kopia);
+  };
+
+  const zatwierdzIZapiszKoncowyPlan = async () => {
+    setLadowanie(true);
+    try {
+      if (!userId || !wygenerowanyPlan) return;
+
+      localStorage.removeItem(`autosave_ankieta_${userId}`);
+      localStorage.setItem('wygenerowany_plan_ai', JSON.stringify(wygenerowanyPlan));
+
+      await supabase.from('plany').upsert({
+        user_id: userId,
+        dane_planu: wygenerowanyPlan,
+        zaktualizowano_at: new Date().toISOString()
+      }, { onConflict: 'user_id' });
+
+      router.push('/');
+    } catch (err: any) {
+      alert("Błąd zapisu planu: " + err.message);
+    } finally {
+      setLadowanie(false);
+    }
+  };
+
   return (
-    <main className="min-h-screen bg-slate-950 text-slate-100 p-4 pb-28 max-w-lg mx-auto flex flex-col justify-between">
+    <main className="min-h-screen bg-slate-950 text-slate-100 p-4 pb-28 w-full max-w-xl mx-auto flex flex-col justify-between overflow-x-hidden">
       <div>
         <div className="flex items-center justify-between mb-2">
           <span className="text-xs font-semibold uppercase tracking-wider text-emerald-400">
-            Krok {krok} z 5
+            {krok <= 5 ? `Krok ${krok} z 5` : 'Krok 6: Sprawdź i przestaw plan'}
           </span>
           <span className="text-[10px] text-slate-400 font-medium text-right">
-            {krok === 1 && 'Podstawy (Płeć, Aktywność, Cel)'}
+            {krok === 1 && 'Podstawy i Własne Wytyczne'}
             {krok === 2 && 'Pomiary ciała'}
             {krok === 3 && 'Zdrowie i Basen'}
             {krok === 4 && 'Inwentarz Siłowni'}
             {krok === 5 && 'Harmonogram Treningowy'}
+            {krok === 6 && 'Dopasowanie dni i ćwiczeń'}
           </span>
         </div>
         <div className="w-full bg-slate-800 h-2 rounded-full mb-6 overflow-hidden">
-          <div className="bg-emerald-500 h-full transition-all duration-300 rounded-full" style={{ width: `${(krok / 5) * 100}%` }} />
+          <div className="bg-emerald-500 h-full transition-all duration-300 rounded-full" style={{ width: `${Math.min(100, (krok / 5) * 100)}%` }} />
         </div>
 
         {/* KROK 1 */}
         {krok === 1 && (
           <div className="space-y-4">
             <h1 className="text-xl font-bold">Podstawy profilu</h1>
+
+            {/* POLE PREFERENCJI DLA AI */}
+            <div className="bg-emerald-950/30 border border-emerald-500/40 rounded-2xl p-4 space-y-2">
+              <div className="flex items-center gap-1.5 text-emerald-400 text-xs font-bold">
+                <Sparkles className="w-4 h-4" />
+                <span>Twoje wytyczne dla trenera AI:</span>
+              </div>
+              <p className="text-[11px] text-slate-300">
+                Wpisz tu dokładnie, jak chcesz trenować (np. ile razy basen, jakie tempo, styl FBW, spacery, ochrona stawów):
+              </p>
+              <textarea
+                rows={3}
+                value={wlasnePreferencje}
+                onChange={(e) => setWlasnePreferencje(e.target.value)}
+                placeholder="np. 118 kg, basen 2x w tyg po 40 min tempo 2:00, siłownia 2x FBW bez przeciążania stawów, spacery"
+                className="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-xs text-white focus:outline-none focus:border-emerald-400 leading-relaxed font-medium"
+              />
+            </div>
             
             <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4">
-              <label className="text-xs text-slate-400 block mb-2 font-medium">Płeć (wpływa na BMR):</label>
+              <label className="text-xs text-slate-400 block mb-2 font-medium">Płeć:</label>
               <div className="grid grid-cols-2 gap-2">
                 <button
                   type="button"
@@ -362,10 +402,22 @@ export default function AnkietaStartowa() {
           </div>
         )}
 
+        {/* KROK 2 */}
         {krok === 2 && (
           <div className="space-y-4">
-            <h1 className="text-xl font-bold">Pomiary ciała (cm)</h1>
-            <p className="text-xs text-slate-400">Wpisz obwody, aby aplikacja mogła generować dla Ciebie wykresy postępów.</p>
+            <div className="flex justify-between items-center">
+              <div>
+                <h1 className="text-xl font-bold">Pomiary ciała (cm)</h1>
+                <p className="text-xs text-slate-400">Możesz wpisać teraz lub pominąć i uzupełnić później.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setKrok(3)}
+                className="text-xs bg-slate-800 hover:bg-slate-700 border border-slate-700 text-emerald-400 px-3 py-1.5 rounded-xl font-medium transition"
+              >
+                Pomiń ten krok →
+              </button>
+            </div>
 
             <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5">
               <div className="flex items-center gap-1.5 mb-4 text-emerald-400 text-sm font-semibold">
@@ -376,41 +428,34 @@ export default function AnkietaStartowa() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-[10px] text-slate-400">Klatka piersiowa</label>
-                  <input type="number" value={dane.pomiary.klatkaCm || ''} onChange={(e) => setDane({ ...dane, pomiary: { ...dane.pomiary, klatkaCm: Number(e.target.value) } })} className="w-full bg-slate-800 border border-slate-700 rounded-xl px-2.5 py-1.5 text-xs text-white" />
+                  <input type="number" placeholder="opcjonalnie" value={dane.pomiary.klatkaCm || ''} onChange={(e) => setDane({ ...dane, pomiary: { ...dane.pomiary, klatkaCm: Number(e.target.value) } })} className="w-full bg-slate-800 border border-slate-700 rounded-xl px-2.5 py-1.5 text-xs text-white" />
                 </div>
                 <div>
                   <label className="text-[10px] text-slate-400">Pas / Talia (pępek)</label>
-                  <input type="number" value={dane.pomiary.pasTaliaCm || ''} onChange={(e) => setDane({ ...dane, pomiary: { ...dane.pomiary, pasTaliaCm: Number(e.target.value) } })} className="w-full bg-slate-800 border border-slate-700 rounded-xl px-2.5 py-1.5 text-xs text-white" />
+                  <input type="number" placeholder="opcjonalnie" value={dane.pomiary.pasTaliaCm || ''} onChange={(e) => setDane({ ...dane, pomiary: { ...dane.pomiary, pasTaliaCm: Number(e.target.value) } })} className="w-full bg-slate-800 border border-slate-700 rounded-xl px-2.5 py-1.5 text-xs text-white" />
                 </div>
                 <div>
                   <label className="text-[10px] text-slate-400">Biodra / Pośladki</label>
-                  <input type="number" value={dane.pomiary.biodraCm || ''} onChange={(e) => setDane({ ...dane, pomiary: { ...dane.pomiary, biodraCm: Number(e.target.value) } })} className="w-full bg-slate-800 border border-slate-700 rounded-xl px-2.5 py-1.5 text-xs text-white" />
+                  <input type="number" placeholder="opcjonalnie" value={dane.pomiary.biodraCm || ''} onChange={(e) => setDane({ ...dane, pomiary: { ...dane.pomiary, biodraCm: Number(e.target.value) } })} className="w-full bg-slate-800 border border-slate-700 rounded-xl px-2.5 py-1.5 text-xs text-white" />
                 </div>
                 <div>
                   <label className="text-[10px] text-slate-400">Ramię / Biceps</label>
-                  <input type="number" placeholder="Największy obwód" value={dane.pomiary.bicepsCm || ''} onChange={(e) => setDane({ ...dane, pomiary: { ...dane.pomiary, bicepsCm: Number(e.target.value) } })} className="w-full bg-slate-800 border border-slate-700 rounded-xl px-2.5 py-1.5 text-xs text-white" />
+                  <input type="number" placeholder="opcjonalnie" value={dane.pomiary.bicepsCm || ''} onChange={(e) => setDane({ ...dane, pomiary: { ...dane.pomiary, bicepsCm: Number(e.target.value) } })} className="w-full bg-slate-800 border border-slate-700 rounded-xl px-2.5 py-1.5 text-xs text-white" />
                 </div>
                 <div>
                   <label className="text-[10px] text-slate-400">Udo</label>
-                  <input type="number" placeholder="Najgrubsze miejsce" value={dane.pomiary.udoCm || ''} onChange={(e) => setDane({ ...dane, pomiary: { ...dane.pomiary, udoCm: Number(e.target.value) } })} className="w-full bg-slate-800 border border-slate-700 rounded-xl px-2.5 py-1.5 text-xs text-white" />
+                  <input type="number" placeholder="opcjonalnie" value={dane.pomiary.udoCm || ''} onChange={(e) => setDane({ ...dane, pomiary: { ...dane.pomiary, udoCm: Number(e.target.value) } })} className="w-full bg-slate-800 border border-slate-700 rounded-xl px-2.5 py-1.5 text-xs text-white" />
                 </div>
                 <div>
                   <label className="text-[10px] text-slate-400">Łydka</label>
-                  <input type="number" value={dane.pomiary.lydkaCm || ''} onChange={(e) => setDane({ ...dane, pomiary: { ...dane.pomiary, lydkaCm: Number(e.target.value) } })} className="w-full bg-slate-800 border border-slate-700 rounded-xl px-2.5 py-1.5 text-xs text-white" />
-                </div>
-                <div>
-                  <label className="text-[10px] text-slate-400">Kark / Szyja</label>
-                  <input type="number" value={dane.pomiary.karkSzyjaCm || ''} onChange={(e) => setDane({ ...dane, pomiary: { ...dane.pomiary, karkSzyjaCm: Number(e.target.value) } })} className="w-full bg-slate-800 border border-slate-700 rounded-xl px-2.5 py-1.5 text-xs text-white" />
-                </div>
-                <div>
-                  <label className="text-[10px] text-slate-400">Przedramię</label>
-                  <input type="number" value={dane.pomiary.przedramieCm || ''} onChange={(e) => setDane({ ...dane, pomiary: { ...dane.pomiary, przedramieCm: Number(e.target.value) } })} className="w-full bg-slate-800 border border-slate-700 rounded-xl px-2.5 py-1.5 text-xs text-white" />
+                  <input type="number" placeholder="opcjonalnie" value={dane.pomiary.lydkaCm || ''} onChange={(e) => setDane({ ...dane, pomiary: { ...dane.pomiary, lydkaCm: Number(e.target.value) } })} className="w-full bg-slate-800 border border-slate-700 rounded-xl px-2.5 py-1.5 text-xs text-white" />
                 </div>
               </div>
             </div>
           </div>
         )}
 
+        {/* KROK 3 */}
         {krok === 3 && (
           <div className="space-y-4">
             <h1 className="text-xl font-bold">Zdrowie i Basen</h1>
@@ -418,11 +463,11 @@ export default function AnkietaStartowa() {
             <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-3">
               <div className="flex items-center gap-2 text-red-400 text-xs font-semibold">
                 <HeartPulse className="w-4 h-4" />
-                <span>Urazy, przebyte kontuzje, wrażliwe stawy</span>
+                <span>Urazy, przebyte kontuzje, wrażliwe stawy (Ochrona stawów)</span>
               </div>
               <textarea
                 rows={3}
-                placeholder="np. wrażliwe lędźwie przy ciężkim martwym ciągu..."
+                placeholder="np. Duża waga, ochrona kolan i kręgosłupa, bez ciężkich przysiadów i skoków..."
                 value={dane.zdrowieIKontuzje}
                 onChange={(e) => setDane({ ...dane, zdrowieIKontuzje: e.target.value })}
                 className="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-xs text-white focus:border-red-400"
@@ -437,7 +482,7 @@ export default function AnkietaStartowa() {
                   {(['poczatkujacy', 'sredniozaawansowany', 'zaawansowany', 'zawodnik_masters'] as PoziomPlywania[]).map((p) => (
                     <button 
                       key={p} 
-                      type="button"
+                      type="button" 
                       onClick={() => setDane({ ...dane, basen: { ...dane.basen, poziom: p } })} 
                       className={`p-2 rounded-xl border text-[11px] transition-all ${dane.basen.poziom === p ? 'bg-cyan-500/20 border-cyan-500 text-cyan-300' : 'bg-slate-800/40 border-slate-700 text-slate-400'}`}
                     >
@@ -456,7 +501,7 @@ export default function AnkietaStartowa() {
                   {STYLE_BASEN.map((styl) => (
                     <button 
                       key={styl.id} 
-                      type="button"
+                      type="button" 
                       onClick={() => setDane({ ...dane, basen: { ...dane.basen, znaneStyle: przelaczElement(dane.basen.znaneStyle, styl.id) } })} 
                       className={`p-2 rounded-xl border text-[11px] transition-all ${dane.basen.znaneStyle.includes(styl.id) ? 'bg-cyan-500/20 border-cyan-500 text-cyan-300' : 'bg-slate-800/40 border-slate-700 text-slate-400'}`}
                     >
@@ -480,10 +525,11 @@ export default function AnkietaStartowa() {
           </div>
         )}
 
+        {/* KROK 4 */}
         {krok === 4 && (
           <div className="space-y-4">
             <h1 className="text-xl font-bold">Dostępny inwentarz</h1>
-            <p className="text-xs text-slate-400">Zaznacz wszystko, co masz na siłowni, żeby AI mogło wpleść te maszyny w plan.</p>
+            <p className="text-xs text-slate-400">Zaznacz sprzęt na siłowni, aby AI dobrało ćwiczenia nieprzeciążające stawów.</p>
 
             <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-3">
               <div className="grid grid-cols-1 gap-1.5 max-h-60 overflow-y-auto pr-1">
@@ -492,7 +538,7 @@ export default function AnkietaStartowa() {
                   return (
                     <button 
                       key={sprzet.id} 
-                      type="button"
+                      type="button" 
                       onClick={() => setDane({ ...dane, sprzet: przelaczElement(dane.sprzet, sprzet.id) })} 
                       className={`w-full flex justify-between p-2.5 rounded-xl border text-xs transition-all ${zaznaczony ? 'bg-amber-500/20 border-amber-500 text-amber-300' : 'bg-slate-800/40 border-slate-700 text-slate-400'}`}>
                       <div className="text-left">
@@ -504,28 +550,18 @@ export default function AnkietaStartowa() {
                   );
                 })}
               </div>
-
-              <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-800">
-                <div>
-                  <label className="text-[10px] text-slate-400">Maks. waga 1 hantli (kg)</label>
-                  <input type="number" value={dane.szczegolySilowni.maksHantleKg || ''} onChange={(e) => setDane({ ...dane, szczegolySilowni: { ...dane.szczegolySilowni, maksHantleKg: Number(e.target.value) } })} className="w-full bg-slate-800 border border-slate-700 rounded-xl px-2.5 py-1.5 text-xs mt-1" />
-                </div>
-                <div>
-                  <label className="text-[10px] text-slate-400">Maks. ciężar na gryf (kg)</label>
-                  <input type="number" value={dane.szczegolySilowni.maksObciazenieGryfKg || ''} onChange={(e) => setDane({ ...dane, szczegolySilowni: { ...dane.szczegolySilowni, maksObciazenieGryfKg: Number(e.target.value) } })} className="w-full bg-slate-800 border border-slate-700 rounded-xl px-2.5 py-1.5 text-xs mt-1" />
-                </div>
-              </div>
             </div>
           </div>
         )}
 
+        {/* KROK 5 */}
         {krok === 5 && (
           <div className="space-y-4">
             <h1 className="text-xl font-bold flex items-center gap-2">
               <Calendar className="text-emerald-400 w-6 h-6" /> Twój harmonogram
             </h1>
             <p className="text-xs text-slate-400 mb-4">
-              Zaznacz, w które dni chcesz wykonywać określone typy treningów. AI ułoży plan **wyłącznie** na wskazane przez Ciebie aktywności!
+              Wybierz wstępne dni treningowe. Po wygenerowaniu będziesz mógł je jeszcze dowolnie przestawiać w Kroku 6.
             </p>
 
             <div className="space-y-2.5">
@@ -559,11 +595,90 @@ export default function AnkietaStartowa() {
           </div>
         )}
 
+        {/* KROK 6 */}
+        {krok === 6 && wygenerowanyPlan && (
+          <div className="space-y-4">
+            <div>
+              <h1 className="text-xl font-bold text-emerald-400">Dopasuj swój plan</h1>
+              <p className="text-xs text-slate-400">Możesz zmienić dzień tygodnia dla dowolnego treningu przed zatwierdzeniem.</p>
+            </div>
+
+            {wygenerowanyPlan.makroskladniki && (
+              <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 grid grid-cols-4 gap-2 text-center">
+                <div className="bg-slate-800/40 p-2 rounded-xl">
+                  <p className="text-[9px] text-slate-400 uppercase">Kcal</p>
+                  <p className="text-xs font-bold text-emerald-400">{wygenerowanyPlan.makroskladniki.kalorieKcal}</p>
+                </div>
+                <div className="bg-slate-800/40 p-2 rounded-xl">
+                  <p className="text-[9px] text-slate-400 uppercase">Białko</p>
+                  <p className="text-xs font-bold text-indigo-400">{wygenerowanyPlan.makroskladniki.bialkoGramy}g</p>
+                </div>
+                <div className="bg-slate-800/40 p-2 rounded-xl">
+                  <p className="text-[9px] text-slate-400 uppercase">Tłuszcze</p>
+                  <p className="text-xs font-bold text-rose-400">{wygenerowanyPlan.makroskladniki.tluszczeGramy}g</p>
+                </div>
+                <div className="bg-slate-800/40 p-2 rounded-xl">
+                  <p className="text-[9px] text-slate-400 uppercase">Węgle</p>
+                  <p className="text-xs font-bold text-amber-400">{wygenerowanyPlan.makroskladniki.weglowodanyGramy}g</p>
+                </div>
+              </div>
+            )}
+
+            <div className="space-y-3">
+              {wygenerowanyPlan.treningiTygodnia?.map((dzien: any, dIdx: number) => (
+                <div key={dIdx} className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-3">
+                  <div className="flex justify-between items-center pb-2 border-b border-slate-800">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] text-slate-400 font-bold uppercase">Dzień:</span>
+                      <select
+                        value={dzien.dzienTygodnia}
+                        onChange={(e) => zmienDzienWPlanie(dIdx, e.target.value)}
+                        className="bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1 text-xs text-emerald-400 font-bold"
+                      >
+                        {DNI_TYGODNIA.map((d) => (
+                          <option key={d} value={d}>{d}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-800 text-slate-300">
+                      {dzien.typ}
+                    </span>
+                  </div>
+
+                  <div>
+                    <h3 className="font-bold text-xs text-white">{dzien.tytul}</h3>
+                    <p className="text-[10px] text-slate-400">{dzien.akcent}</p>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    {dzien.cwiczeniaIZadania?.map((cw: any, cwIdx: number) => (
+                      <div key={cwIdx} className="bg-slate-950 p-2 rounded-xl border border-slate-800 flex justify-between items-center text-xs">
+                        <div className="min-w-0 flex-1 pr-2">
+                          <span className="text-slate-200 font-medium">{cw.nazwa}</span>
+                          <span className="text-[10px] text-slate-400 ml-2">({cw.opisSerii})</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => usunCwiczenieZPlanu(dIdx, cwIdx)}
+                          className="text-slate-500 hover:text-red-400 p-1"
+                          title="Usuń ćwiczenie"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
       </div>
 
       {/* Nawigacja Dolna */}
       <div className="flex items-center gap-3 pt-6">
-        {krok > 1 && (
+        {krok > 1 && krok <= 5 && (
           <button
             type="button"
             disabled={ladowanie}
@@ -573,7 +688,8 @@ export default function AnkietaStartowa() {
             <ArrowLeft className="w-5 h-5" />
           </button>
         )}
-        {krok < 5 ? (
+
+        {krok < 5 && (
           <button
             type="button"
             onClick={() => setKrok(krok + 1)}
@@ -582,11 +698,13 @@ export default function AnkietaStartowa() {
             <span>Dalej</span>
             <ArrowRight className="w-5 h-5" />
           </button>
-        ) : (
+        )}
+
+        {krok === 5 && (
           <button
             type="button"
             disabled={ladowanie}
-            onClick={zakonczAnkiete}
+            onClick={generujPlan}
             className="flex-1 bg-emerald-500 hover:bg-emerald-600 active:scale-[0.99] disabled:bg-slate-800 disabled:text-slate-500 text-slate-950 font-bold py-3.5 px-4 rounded-2xl flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20 transition-all"
           >
             {ladowanie ? (
@@ -601,6 +719,37 @@ export default function AnkietaStartowa() {
               </>
             )}
           </button>
+        )}
+
+        {krok === 6 && (
+          <div className="flex gap-2 w-full">
+            <button
+              type="button"
+              disabled={ladowanie}
+              onClick={() => setKrok(5)}
+              className="w-1/3 bg-slate-900 border border-slate-800 text-slate-300 hover:bg-slate-800 font-bold py-3.5 px-3 rounded-2xl text-xs transition"
+            >
+              ← Popraw ankietę
+            </button>
+            <button
+              type="button"
+              disabled={ladowanie}
+              onClick={zatwierdzIZapiszKoncowyPlan}
+              className="w-2/3 bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-slate-950 font-bold py-3.5 px-4 rounded-2xl text-xs flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20 transition"
+            >
+              {ladowanie ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin text-slate-950" />
+                  <span>Zapisuję...</span>
+                </>
+              ) : (
+                <>
+                  <span>Zatwierdź i idź do Pulpitu</span>
+                  <CheckCircle2 className="w-4 h-4" />
+                </>
+              )}
+            </button>
+          </div>
         )}
       </div>
     </main>
