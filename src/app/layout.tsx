@@ -22,8 +22,19 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  title: "NEXUS • AI Coach",
+  title: "NEXUS",
   description: "Inteligentny asystent treningu i diety",
+  applicationName: "NEXUS",
+  manifest: "/manifest.json",
+  icons: {
+    icon: "/favicon.ico",
+    apple: "/logo.png",
+  },
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "NEXUS",
+  },
 };
 
 export default function RootLayout({
