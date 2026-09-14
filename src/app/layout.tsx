@@ -13,7 +13,6 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-// Konfiguracja skalowania widoku mobilnego (naprawia problem z oddalaniem i szerokością ekranu)
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
@@ -27,8 +26,13 @@ export const metadata: Metadata = {
   applicationName: "NEXUS",
   manifest: "/manifest.json",
   icons: {
-    icon: "/favicon.ico",
-    apple: "/logo.png",
+    icon: [
+      { url: "/icon.png" },
+      { url: "/apple-touch-icon.png" }
+    ],
+    apple: [
+      { url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" }
+    ],
   },
   appleWebApp: {
     capable: true,
