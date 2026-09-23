@@ -5,35 +5,12 @@ export const maxDuration = 60;
 
 import { authorizeAiRequest, jsonError, readJsonObject, requireShortString } from '@/app/lib/api-auth';
 
-async function zapytajGroq(prompt: string) {
-  const groqKey = process.env.GROQ_API_KEY;
-  if (!groqKey) throw new Error("Brak klucza GROQ_API_KEY");
-
-  // Próbujemy llama-3.1-8b-instant
-  const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${groqKey}`,
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
-      model: "llama-3.1-8b-instant",
-      messages: [{ role: "user", content: prompt }],
-      response_format: { type: "json_object" },
-      temperature: 0.2
-    })
-  });
-
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error?.message || "Błąd Groq API");
-  return data.choices?.[0]?.message?.content;
-}
-
+// Główne zapytanie – dokładnie Twój model gemini-3.6-flash
 async function zapytajGemini(prompt: string) {
   const geminiKey = process.env.GEMINI_API_KEY || process.env.NEXT_PUBLIC_GEMINI_API_KEY;
-  if (!geminiKey) throw new Error("Brak klucza GEMINI_API_KEY");
+  if (!geminiKey) throw new Error("Brak klucza GEMINI_API_KEY w zmiennych środowiskowych.");
 
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`;
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${geminiKey}`;
   const res = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -47,7 +24,10 @@ async function zapytajGemini(prompt: string) {
   });
 
   const data = await res.json();
-  if (!res.ok || data.error) throw new Error(data.error?.message || "Błąd Gemini");
+  if (!res.ok || data.error) {
+    throw new Error(data.error?.message || `Błąd Gemini: ${res.status}`);
+  }
+
   return data.candidates?.[0]?.content?.parts?.[0]?.text;
 }
 
@@ -70,61 +50,49 @@ export async function POST(req: Request) {
     const prompt = `Jesteś głównym trenerem i dietetykiem aplikacji sportowej NEXUS.
 Użytkownik pisze do Ciebie: "${wiadomosc}".
 
-AKTUALNY STAN I BAZA:
-- AKTUALNY PLAN UŻYTKOWNIKA: ${JSON.stringify(aktualnyPlan)}
-- ZAPISANE DZISIEJSZE TRENINGI: ${JSON.stringify(zapisaneTreningi)}
-- ZAPISANE DZISIEJSZE POSIŁKI: ${JSON.stringify(zapisanePosilki)}
+DANE UŻYTKOWNIKA:
+- GŁÓWNY PLAN TRENINGOWY: ${JSON.stringify(aktualnyPlan)}
+- DZISIEJSZE TRENINGI: ${JSON.stringify(zapisaneTreningi)}
+- DZISIEJSZE POSIŁKI: ${JSON.stringify(zapisanePosilki)}
 - OSTATNIE WIADOMOŚCI: ${JSON.stringify(historiaRozmowy)}
 - DZISIEJSZA DATA: ${dzisiejszaData}
 
 ZADANIE:
-Zwróć TYLKO czysty obiekt JSON odpowiadający jednej z 3 sytuacji:
+Zwróć TYLKO czysty obiekt JSON bez znaczników markdown, dopasowując jedną z trzech akcji:
 
-1. Jeśli użytkownik prosi o DODANIE, ROZPISANIE lub ZMIANĘ w planie treningowym (np. "dodaj basen na 1000m", "zmień plan", "rozpisz mi to"):
-Musisz zmodyfikować lub dodać wpis w tablicy "treningiTygodnia" w obiekcie planu!
+1. Jeśli użytkownik prosi o DODANIE, ROZPISANIE lub ZMIANĘ w planie treningowym (np. "dodaj basen koło 1000m", "zmień trening", "rozpisz mi to"):
+Musisz zaktualizować lub dopisać odpowiedni dzień w tablicy "treningiTygodnia" w obiekcie planu!
 {
   "typAkcji": "ZMIEN_PLAN",
-  "odpowiedz": "Jasne! Dodałem i rozpisałem trening w Twoim planie tygodniowym.",
+  "odpowiedz": "Jasne! Rozpisałem delikatny trening na basenie (~1000m) i zaktualizowałem Twój plan.",
   "zaktualizowanyPlan": {
-    ...weź cały obiekt AKTUALNY PLAN UŻYTKOWNIKA, dodaj lub podmień odpowiedni dzień w treningiTygodnia z polami: dzienTygodnia, typ, tytul, akcent, cwiczeniaIZadania (gdzie każde zadanie ma nazwa, opisSerii, uwagiTechniczne)...
+    ...weź cały obiekt GŁÓWNY PLAN TRENINGOWY, zaktualizuj odpowiedni dzień w "treningiTygodnia" wstawiając ćwiczenia z nazwami, seriami (opisSerii) i wskazówkami...
   }
 }
 
-2. Jeśli użytkownik dodaje posiłek (np. "zjadłem twaróg 200g"):
+2. Jeśli użytkownik zgłasza zjedzony posiłek:
 {
   "typAkcji": "DODAJ_POSILEK",
-  "odpowiedz": "Dodałem posiłek do dziennika!",
+  "odpowiedz": "Dodałem posiłek do Twojego bilansu!",
   "nowyPosilek": {
-    "nazwa": "Twaróg chudy",
-    "kalorie": 180,
-    "bialko": 36,
-    "weglowodany": 6,
-    "tluszcze": 1
+    "nazwa": "Nazwa posiłku",
+    "kalorie": 250,
+    "bialko": 20,
+    "weglowodany": 30,
+    "tluszcze": 5
   }
 }
 
-3. Zwykła odpowiedź lub porada:
+3. Zwykła rozmowa lub porada:
 {
   "typAkcji": "ODPOWIEDZ",
   "odpowiedz": "Treść porady trenera."
 }`;
 
-    let jsonString: string | undefined;
+    // Bezpośrednie wywołanie Twojego modelu gemini-3.6-flash
+    const jsonString = await zapytajGemini(prompt);
 
-    // Próba 1: Groq (szybki i darmowy)
-    try {
-      jsonString = await zapytajGroq(prompt);
-    } catch (gErr: any) {
-      console.warn("Groq nie powiódł się, przełączam na Gemini:", gErr.message);
-      // Próba 2: Gemini
-      try {
-        jsonString = await zapytajGemini(prompt);
-      } catch (gemErr: any) {
-        throw new Error(`Błąd AI: ${gErr.message} | ${gemErr.message}`);
-      }
-    }
-
-    if (!jsonString) throw new Error("Brak odpowiedzi od silników AI.");
+    if (!jsonString) throw new Error("Brak odpowiedzi od Gemini 3.6.");
 
     let clean = jsonString.replace(/```json/g, '').replace(/```/g, '').trim();
     const match = clean.match(/\{[\s\S]*\}/);
