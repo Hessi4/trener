@@ -1,36 +1,36 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# NEXUS — trener AI
 
-## Getting Started
+Aplikacja do planowania treningów, diety, pomiarów i skanowania produktów. Uwierzytelnianie oraz dane użytkownika obsługuje Supabase, a generowanie planów — Gemini API.
 
-First, run the development server:
+## Uruchomienie
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+W pliku `.env.local` ustaw:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```env
+NEXT_PUBLIC_SUPABASE_URL=https://twoj-projekt.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=twoj_anon_key
+GEMINI_API_KEY=klucz_tylko_po_stronie_serwera
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Nie używaj `NEXT_PUBLIC_GEMINI_API_KEY`: zmienne z tym prefiksem trafiają do kodu przeglądarki.
 
-## Learn More
+## Supabase i bezpieczeństwo danych
 
-To learn more about Next.js, take a look at the following resources:
+W SQL Editor Supabase uruchom migrację `supabase/migrations/20260915_enable_user_data_rls.sql`. Zakłada ona, że tabele `plany`, `treningi`, `posilki` i `pomiary` mają kolumnę `user_id uuid`, powiązaną z `auth.users.id`.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Po włączeniu RLS każdy użytkownik może odczytywać i zmieniać wyłącznie swoje rekordy.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Kontrola jakości
 
-## Deploy on Vercel
+```bash
+npx tsc --noEmit
+npm run lint
+npm run build
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+`tsc` i build powinny przechodzić. Lint nadal wskazuje historyczne użycia `any` i kilka efektów Reacta do stopniowego uporządkowania.

@@ -6,6 +6,8 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import BarcodeScanner from '@/app/components/BarcodeScanner';
 import { pobierzProduktPoKodzie } from '@/app/lib/scanner';
+import { authenticatedFetch } from '@/app/lib/api-client';
+import { supabase } from '@/app/lib/supabase';
 
 export default function SkanerPage() {
   const router = useRouter();
@@ -28,7 +30,7 @@ export default function SkanerPage() {
       setKomunikat(null);
     } catch (err) {
       try {
-        const resAi = await fetch('/api/asystent/produkt-ai', {
+        const resAi = await authenticatedFetch('/api/asystent/produkt-ai', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ barcode })
@@ -53,7 +55,7 @@ export default function SkanerPage() {
     setKomunikat(null);
     setListaWyszukiwania(null);
     try {
-      const res = await fetch('/api/asystent/szukaj-produktu', {
+      const res = await authenticatedFetch('/api/asystent/szukaj-produktu', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ nazwaProduktu: szukanaNazwa })
@@ -91,7 +93,7 @@ export default function SkanerPage() {
   const weglowodany = Math.round((produkt ? produkt.weglowodanyNa100g * mnoznik : 0) * 10) / 10;
   const tluszcze = Math.round((produkt ? produkt.tluszczeNa100g * mnoznik : 0) * 10) / 10;
 
-  const dodajPosilekDoBazy = () => {
+  const dodajPosilekDoBazy = async () => {
     if (!produkt) return;
 
     const zapisanePosilki = localStorage.getItem('moje_posilki_dzis');
@@ -107,6 +109,15 @@ export default function SkanerPage() {
       tluszcze: tluszcze,
       data: dzisiejszaData,
     };
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      const { error } = await supabase.from('posilki').insert([{ ...nowyPosilek, user_id: user.id }]);
+      if (error) {
+        setKomunikat('Nie udało się zapisać posiłku w chmurze. Spróbuj ponownie.');
+        return;
+      }
+    }
 
     const zaktualizowane = [...aktualnePosilki, nowyPosilek];
     localStorage.setItem('moje_posilki_dzis', JSON.stringify(zaktualizowane));

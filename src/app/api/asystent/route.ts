@@ -1,18 +1,83 @@
 // src/app/api/asystent/route.ts
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
-export const maxDuration = 60; // Zezwala na dłuższy czas wykonania na serwerze
+export const maxDuration = 60;
+
+import { authorizeAiRequest, jsonError, readJsonObject } from '@/app/lib/api-auth';
+
+// Awaryjny Groq (uruchamia się tylko w razie problemów z Gemini)
+async function generujPlanGroq(prompt: string) {
+  const groqKey = process.env.GROQ_API_KEY;
+  if (!groqKey) throw new Error("Brak klucza GROQ_API_KEY.");
+
+  const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${groqKey}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      model: "llama-3.3-70b-versatile",
+      messages: [
+        {
+          role: "system",
+          content: "Jesteś elitarnym trenerem personalnym i dietetykiem klinicznym. Zwracasz WYŁĄCZNIE poprawny obiekt JSON wg wskazanego schematu."
+        },
+        { role: "user", content: prompt }
+      ],
+      response_format: { type: "json_object" },
+      temperature: 0.2
+    })
+  });
+
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.error?.message || "Błąd API Groq.");
+  return data.choices?.[0]?.message?.content;
+}
+
+// Główne wywołanie Twojego Gemini 3.6 Flash
+async function generujPlanGemini(prompt: string, apiKey: string) {
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${apiKey}`;
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      contents: [{ role: 'user', parts: [{ text: prompt }] }],
+      generationConfig: { 
+        responseMimeType: "application/json",
+        temperature: 0.2
+      }
+    })
+  });
+
+  const data = await response.json();
+  if (!response.ok || data.error) {
+    throw new Error(data.error?.message || `HTTP ${response.status}`);
+  }
+
+  return data.candidates?.[0]?.content?.parts?.[0]?.text;
+}
 
 export async function POST(req: Request) {
   try {
-    const profil = await req.json();
+    const authorization = await authorizeAiRequest(req);
+    if (authorization instanceof Response) return authorization;
+    const profil = await readJsonObject(req);
+    if (!profil) return jsonError('Nieprawidłowe dane ankiety.', 400);
+    const harmonogram = Array.isArray(profil.harmonogram) ? profil.harmonogram : [];
+    const silownia = profil.szczegolySilowni && typeof profil.szczegolySilowni === 'object'
+      ? profil.szczegolySilowni as Record<string, unknown>
+      : {};
+    const basen = profil.basen && typeof profil.basen === 'object'
+      ? profil.basen as Record<string, unknown>
+      : {};
     
-    // Klucz API po stronie serwera
     const apiKey = process.env.GEMINI_API_KEY || process.env.NEXT_PUBLIC_GEMINI_API_KEY;
 
-    if (!apiKey) {
-      return Response.json({ error: "Brak klucza API GEMINI_API_KEY w zmiennych środowiskowych." }, { status: 500 });
-    }
+    const harmonogramTekst = harmonogram.length > 0 
+      ? harmonogram.map((d: any) => `- ${d?.dzienTygodnia || ''}: ${d?.rodzajTreningu || ''}`).join('\n')
+      : 'Brak wytycznych - rozłóż standardowo.';
 
     const promptSystemowy = `
 Jesteś elitarnym trenerem personalnym i dietetykiem klinicznym. Masz za zadanie ułożyć kompletny, spersonalizowany plan na 7 dni w formacie JSON.
@@ -28,20 +93,20 @@ DANE FIZYCZNE I BIOMECHANIKA:
 
 HARMONOGRAM TRENINGOWY (ZAKAZ ZMIENIANIA!):
 Musisz ułożyć treningi DOKŁADNIE w te dni i w takiej formie, jak zażyczył sobie użytkownik poniżej. Jeśli użytkownik ma "Wolne", zaplanuj tam "Regeneracja".
-${profil.harmonogram ? profil.harmonogram.map((d: any) => `- ${d.dzienTygodnia}: ${d.rodzajTreningu}`).join('\n') : 'Brak wytycznych - rozłóż standardowo.'}
+${harmonogramTekst}
 
 DOSTĘPNY SPRZĘT NA SIŁOWNI:
 - Lista sprzętu: ${JSON.stringify(profil.sprzet || [])}
-- Maksymalna waga hantli: ${profil.szczegolySilowni?.maksHantleKg || 0} kg
-- Maksymalne obciążenie na gryf: ${profil.szczegolySilowni?.maksObciazenieGryfKg || 0} kg
+- Maksymalna waga hantli: ${silownia.maksHantleKg || 0} kg
+- Maksymalne obciążenie na gryf: ${silownia.maksObciazenieGryfKg || 0} kg
 *UWAGA: Rozpisując trening "Siłownia", używaj TYLKO ćwiczeń na sprzęt z powyższej listy.*
 
 PARAMETRY BASENU (jeśli w harmonogramie jest "Basen"):
-- Poziom: ${profil.basen?.poziom || 'Brak danych'}
-- Opanowane style: ${JSON.stringify(profil.basen?.znaneStyle || [])}
-- Dostępne akcesoria: ${JSON.stringify(profil.basen?.akcesoria || [])}
-- Tempo komfortowe (100m): ${profil.basen?.tempo100mKraulKomfort || 'Nie określono'}
-- Średnia objętość sesji: ${profil.basen?.sredniaObjetoscSesjiMetry || 0} m
+- Poziom: ${basen.poziom || 'Brak danych'}
+- Opanowane style: ${JSON.stringify(basen.znaneStyle || [])}
+- Dostępne akcesoria: ${JSON.stringify(basen.akcesoria || [])}
+- Tempo komfortowe (100m): ${basen.tempo100mKraulKomfort || 'Nie określono'}
+- Średnia objętość sesji: ${basen.sredniaObjetoscSesjiMetry || 0} m
 
 TWOJE ZADANIE:
 1. Oblicz całkowite zapotrzebowanie kaloryczne (TDEE) uwzględniając płeć, wiek, wagę, wzrost i poziom aktywności.
@@ -72,40 +137,38 @@ ZWRÓĆ WYŁĄCZNIE POPRAWNY OBIEKT JSON WG TEGO SCHEMATU:
 }
 `;
 
-    // Endpoint v1beta z modelem gemini-3.6-flash
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${apiKey}`;
+    let jsonString: string | undefined;
 
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ role: 'user', parts: [{ text: promptSystemowy }] }],
-        generationConfig: { 
-          responseMimeType: "application/json",
-          temperature: 0.2
-        }
-      })
-    });
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      console.error("Błąd Google API:", data);
-      throw new Error(data.error?.message || "Błąd komunikacji z API Google.");
+    // Próba 1: Gemini 3.6 Flash
+    if (apiKey) {
+      try {
+        jsonString = await generujPlanGemini(promptSystemowy, apiKey);
+      } catch (geminiError: any) {
+        console.warn("Gemini 3.6 zgłosiło błąd przy generowaniu planu. Przełączam na Groq:", geminiError.message);
+      }
     }
 
-    let jsonString = data.candidates?.[0]?.content?.parts?.[0]?.text;
-    
+    // Próba 2: Groq jako awaryjny fallback
+    if (!jsonString) {
+      try {
+        jsonString = await generujPlanGroq(promptSystemowy);
+      } catch (groqError: any) {
+        throw new Error(`Oba systemy AI zawiodły: ${groqError.message}`);
+      }
+    }
+
     if (!jsonString) {
       throw new Error("Pusta odpowiedź z modelu AI.");
     }
 
-    // Bezpieczne czyszczenie ewentualnych znaczników markdown
     if (jsonString.includes('```json')) {
       jsonString = jsonString.split('```json')[1].split('```')[0].trim();
     } else if (jsonString.includes('```')) {
       jsonString = jsonString.split('```')[1].split('```')[0].trim();
     }
+
+    const match = jsonString.match(/\{[\s\S]*\}/);
+    if (match) jsonString = match[0];
 
     const wygenerowanyPlan = JSON.parse(jsonString);
 

@@ -6,6 +6,7 @@ export const dynamic = 'force-dynamic';
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { supabase } from '@/app/lib/supabase';
+import { authenticatedFetch } from '@/app/lib/api-client';
 
 export default function EdytorPlanuPage() {
   const [plan, setPlan] = useState<any>(null);
@@ -161,55 +162,20 @@ export default function EdytorPlanuPage() {
 
     setLadujeAi(true);
     try {
-      const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY || process.env.GEMINI_API_KEY;
-      if (!apiKey) {
-        throw new Error("Brak klucza API (wymagane NEXT_PUBLIC_GEMINI_API_KEY).");
-      }
-
-      const promptSystemowy = `
-Wygeneruj listę ćwiczeń dla dnia treningowego. 
-Dzień: ${aktualny.dzienTygodnia}, Tytuł: ${aktualny.tytul}, Typ aktywności: ${aktualny.typ}.
-Zwróć WYŁĄCZNIE poprawną tablicę JSON w formacie obiektów:
-[
-  { "nazwa": "Nazwa ćwiczenia", "opisSerii": "np. 3x10", "uwagiTechniczne": "wskazówka" }
-]
-`;
-
-       const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${apiKey}`;
-
-      const response = await fetch(url, {
+      const response = await authenticatedFetch('/api/asystent/edytor-dnia', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{
-            role: 'user',
-            parts: [{ text: promptSystemowy }]
-          }],
-          generationConfig: {
-            responseMimeType: "application/json",
-            temperature: 0.2
-          }
-        })
+        body: JSON.stringify({ aktualny }),
       });
 
       const data = await response.json();
 
       if (!response.ok) {
-        console.error("Błąd Google API:", data);
-        throw new Error(data.error?.message || "Błąd komunikacji z API Google.");
+        throw new Error(data.error || "Błąd komunikacji z AI.");
       }
-
-      let jsonString = data.candidates?.[0]?.content?.parts?.[0]?.text;
-      if (jsonString.includes('```json')) {
-        jsonString = jsonString.split('```json')[1].split('```')[0].trim();
-      } else if (jsonString.includes('```')) {
-        jsonString = jsonString.split('```')[1].split('```')[0].trim();
-      }
-
-      const wygenerowaneCwiczenia = JSON.parse(jsonString);
 
       const dni = [...plan.treningiTygodnia];
-      dni[wybranyIdx].cwiczeniaIZadania = wygenerowaneCwiczenia;
+      dni[wybranyIdx].cwiczeniaIZadania = data;
       zapiszZmiany({ ...plan, treningiTygodnia: dni });
 
     } catch (err: any) {

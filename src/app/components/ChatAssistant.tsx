@@ -3,6 +3,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { supabase } from '@/app/lib/supabase';
+import { authenticatedFetch } from '@/app/lib/api-client';
 
 interface ChatAssistantProps {
   onPlanUpdated?: (nowyPlan: any) => void;
@@ -81,7 +82,7 @@ export default function ChatAssistant({ onPlanUpdated, onPosilekAdded }: ChatAss
         if (m) zapisanePosilki = JSON.parse(m);
       }
 
-      const res = await fetch('/api/asystent/chat', {
+      const res = await authenticatedFetch('/api/asystent/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

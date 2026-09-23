@@ -7,6 +7,7 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/app/lib/supabase';
+import { authenticatedFetch } from '@/app/lib/api-client';
 import ChatAssistant from '@/app/components/ChatAssistant';
 
 export default function PulpitGłówny() {
@@ -313,7 +314,7 @@ export default function PulpitGłówny() {
   const usunWynik = async (id: number) => {
     const zaktualizowane = treningiZapis.filter(t => t.id !== id);
     setTreningiZapis(zaktualizowane);
-    await supabase.from('treningi').delete().eq('id', id);
+    await supabase.from('treningi').delete().eq('id', id).eq('user_id', user.id);
   };
 
   const obliczMakroAI = async () => {
@@ -324,7 +325,7 @@ export default function PulpitGłówny() {
 
     setLadowanieAiPosilek(true);
     try {
-      const res = await fetch('/api/asystent/oblicz-makro', {
+      const res = await authenticatedFetch('/api/asystent/oblicz-makro', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
@@ -382,7 +383,7 @@ export default function PulpitGłówny() {
   const usunPosilek = async (id: number) => {
     const zaktualizowane = posilki.filter(p => p.id !== id);
     setPosilki(zaktualizowane);
-    await supabase.from('posilki').delete().eq('id', id);
+    await supabase.from('posilki').delete().eq('id', id).eq('user_id', user.id);
   };
 
   const dniTreningowe = plan?.treningiTygodnia || [];

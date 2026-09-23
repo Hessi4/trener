@@ -6,6 +6,7 @@ export const dynamic = 'force-dynamic';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/app/lib/supabase';
+import { authenticatedFetch } from '@/app/lib/api-client';
 import { 
   ProfilUzytkownikaRozszerzony, 
   CelGlowny, 
@@ -201,7 +202,7 @@ export default function AnkietaStartowa() {
         zdrowieIKontuzje: `${dane.zdrowieIKontuzje || ''} | Preferencje: ${wlasnePreferencje}`
       };
 
-      const res = await fetch('/api/asystent', {
+      const res = await authenticatedFetch('/api/asystent', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
