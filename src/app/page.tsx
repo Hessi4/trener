@@ -65,14 +65,19 @@ export default function PulpitGłówny() {
           .from('plany')
           .select('dane_planu')
           .eq('user_id', currentUser.id)
-          .single();
+          .maybeSingle();
 
-        if (!planData?.dane_planu) {
-          router.push('/ankieta-startowa');
-          return;
+        if (planData?.dane_planu) {
+          setPlan(planData.dane_planu);
+        } else {
+          const localPlan = localStorage.getItem('wygenerowany_plan_ai');
+          if (localPlan) {
+            setPlan(JSON.parse(localPlan));
+          } else {
+            router.push('/ankieta-startowa');
+            return;
+          }
         }
-
-        setPlan(planData.dane_planu);
 
         // 2. Pobieranie treningów
         const { data: treningiData } = await supabase
@@ -114,6 +119,24 @@ export default function PulpitGłówny() {
       }
     }
   }, [wybranaData, plan]);
+
+  // Funkcja aktualizacji planu z poziomu Czatu z natychmiastowym zapisem w bazie
+  const aktualizujIZapiszPlan = async (nowyPlan: any) => {
+    setPlan(nowyPlan);
+    localStorage.setItem('wygenerowany_plan_ai', JSON.stringify(nowyPlan));
+    
+    if (user?.id) {
+      try {
+        await supabase.from('plany').upsert({
+          user_id: user.id,
+          dane_planu: nowyPlan,
+          zaktualizowano_at: new Date().toISOString()
+        }, { onConflict: 'user_id' });
+      } catch (e) {
+        console.error("Błąd zapisu planu z asystenta:", e);
+      }
+    }
+  };
 
   const wyloguj = async () => {
     await supabase.auth.signOut();
@@ -325,7 +348,7 @@ export default function PulpitGłówny() {
 
     setLadowanieAiPosilek(true);
     try {
-      const res = await authenticatedFetch('/api/asystent/oblicz-makro', {
+      const res = await authenticatedFetch('/api/asystent/szukaj-produktu', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
@@ -403,37 +426,11 @@ export default function PulpitGłówny() {
 
   return (
     <div className="w-full max-w-2xl mx-auto p-4 sm:p-6 text-white min-h-screen bg-zinc-950 space-y-6 pb-24 overflow-x-hidden">
-      {/* NAGŁÓWEK Z LOGO NEXUS */}
+      {/* NAGŁÓWEK */}
       <div className="flex justify-between items-center bg-zinc-900 border border-zinc-800 p-4 sm:p-5 rounded-2xl shadow-xl flex-wrap gap-3">
         <div className="flex items-center gap-3">
-          {/* SYGNET LOGO NEXUS */}
           <div className="relative flex items-center justify-center shrink-0 w-12 h-12 rounded-2xl bg-zinc-950 p-1 shadow-lg shadow-emerald-500/15 border border-zinc-800/80">
-            <svg
-              viewBox="0 0 100 100"
-              fill="none"
-              xmlns="http://www.w3.org/2000/svg"
-              className="w-full h-full"
-            >
-              <defs>
-                <linearGradient id="nexusGradHeader" x1="15" y1="15" x2="85" y2="85" gradientUnits="userSpaceOnUse">
-                  <stop stopColor="#10B981" />
-                  <stop offset="0.6" stopColor="#06B6D4" />
-                  <stop offset="1" stopColor="#6366F1" />
-                </linearGradient>
-                <radialGradient id="nexusGlowHeader" cx="50" cy="50" r="45" gradientUnits="userSpaceOnUse">
-                  <stop stopColor="#10B981" stopOpacity="0.15" />
-                  <stop offset="1" stopColor="#000000" stopOpacity="0" />
-                </radialGradient>
-              </defs>
-              <rect width="100" height="100" rx="22" fill="#09090b" />
-              <rect width="100" height="100" rx="22" fill="url(#nexusGlowHeader)" />
-              <rect x="1.5" y="1.5" width="97" height="97" rx="20.5" stroke="#27272a" strokeWidth="1.5" />
-              <path d="M26 72V28" stroke="url(#nexusGradHeader)" strokeWidth="8.5" strokeLinecap="round" />
-              <path d="M27 30L73 70" stroke="url(#nexusGradHeader)" strokeWidth="8.5" strokeLinecap="round" />
-              <path d="M74 72V28" stroke="url(#nexusGradHeader)" strokeWidth="8.5" strokeLinecap="round" />
-              <circle cx="50" cy="50" r="5" fill="#FFFFFF" />
-              <circle cx="50" cy="50" r="8" stroke="#06B6D4" strokeWidth="2.5" strokeOpacity="0.8" />
-            </svg>
+            <span className="text-xl">⚡</span>
             <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-emerald-500 border-2 border-zinc-950 rounded-full animate-pulse" />
           </div>
 
@@ -801,7 +798,7 @@ export default function PulpitGłówny() {
 
       {/* ASYSTENT TRENERA AI */}
       <ChatAssistant 
-        onPlanUpdated={(nowyPlan) => setPlan(nowyPlan)}
+        onPlanUpdated={aktualizujIZapiszPlan}
         onPosilekAdded={(nowyPosilek) => setPosilki((prev) => [...prev, nowyPosilek])}
       />
     </div>
